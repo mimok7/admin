@@ -21,18 +21,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '비밀번호는 최소 6자 이상이어야 합니다.' }, { status: 400 });
     }
 
-    const response = NextResponse.next();
-    const supabase = await createSupabaseServerClient(response);
+    let requesterId: string | null = null;
 
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData.user) {
+    // 1) Bearer 토큰 우선 (클라이언트 로컬세션 기반 요청 대응)
+    const authHeader = req.headers.get('authorization') || '';
+    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (bearerToken) {
+      const { data: tokenData, error: tokenError } = await serviceSupabase.auth.getUser(bearerToken);
+      if (!tokenError && tokenData.user) {
+        requesterId = tokenData.user.id;
+      }
+    }
+
+    // 2) 쿠키 세션 폴백
+    if (!requesterId) {
+      const response = NextResponse.next();
+      const supabase = await createSupabaseServerClient(response);
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (!authError && authData.user) {
+        requesterId = authData.user.id;
+      }
+    }
+
+    if (!requesterId) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
     }
 
-    const { data: me, error: meError } = await supabase
+    const { data: me, error: meError } = await serviceSupabase
       .from('users')
       .select('role')
-      .eq('id', authData.user.id)
+      .eq('id', requesterId)
       .maybeSingle();
 
     if (meError || me?.role !== 'admin') {
