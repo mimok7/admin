@@ -65,7 +65,7 @@ export default function AdminDashboard() {
             status, 
             created_at, 
             total_price,
-            users!inner(email)
+            user_id
           `)
           .order('created_at', { ascending: false })
           .limit(5);
@@ -78,10 +78,26 @@ export default function AdminDashboard() {
             re_type, 
             re_status, 
             re_created_at,
-            users!inner(email)
+            re_user_id
           `)
           .order('re_created_at', { ascending: false })
           .limit(5);
+
+        const userIds = Array.from(
+          new Set([
+            ...(recentQuotesData || []).map((q: any) => q.user_id).filter(Boolean),
+            ...(recentReservationsData || []).map((r: any) => r.re_user_id).filter(Boolean),
+          ])
+        );
+
+        let emailMap = new Map<string, string>();
+        if (userIds.length > 0) {
+          const { data: usersById } = await supabase
+            .from('users')
+            .select('id, email')
+            .in('id', userIds);
+          emailMap = new Map((usersById || []).map((u: any) => [u.id, u.email || '-']));
+        }
 
         // 통계 계산
         const totalQuotes = allQuotes?.length || 0;
@@ -103,8 +119,14 @@ export default function AdminDashboard() {
           monthlyRevenue,
         });
 
-        setRecentQuotes(recentQuotesData || []);
-        setRecentReservations(recentReservationsData || []);
+        setRecentQuotes((recentQuotesData || []).map((q: any) => ({
+          ...q,
+          user_email: emailMap.get(q.user_id) || '-',
+        })));
+        setRecentReservations((recentReservationsData || []).map((r: any) => ({
+          ...r,
+          user_email: emailMap.get(r.re_user_id) || '-',
+        })));
       } catch (error) {
         console.error('대시보드 데이터 로딩 실패:', error);
       } finally {
@@ -182,7 +204,7 @@ export default function AdminDashboard() {
                     >
                       <div>
                         <div className="font-medium">견적 #{quote.id}</div>
-                        <div className="text-sm text-gray-500">{quote.users?.email}</div>
+                        <div className="text-sm text-gray-500">{quote.user_email}</div>
                         <div className="text-xs text-gray-400">
                           {new Date(quote.created_at).toLocaleString()}
                         </div>
@@ -235,7 +257,7 @@ export default function AdminDashboard() {
                     >
                       <div>
                         <div className="font-medium">예약 #{reservation.re_id}</div>
-                        <div className="text-sm text-gray-500">{reservation.users?.email}</div>
+                        <div className="text-sm text-gray-500">{reservation.user_email}</div>
                         <div className="text-xs text-gray-400">
                           {new Date(reservation.re_created_at).toLocaleString()}
                         </div>

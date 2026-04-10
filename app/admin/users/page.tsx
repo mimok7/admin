@@ -163,7 +163,14 @@ export default function AdminUsersPage() {
         body: JSON.stringify({ userId, newPassword })
       });
 
-      const result = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      let result: any = null;
+      if (contentType.includes('application/json')) {
+        result = await response.json();
+      } else {
+        const text = await response.text();
+        result = { error: text || '서버 응답을 해석할 수 없습니다.' };
+      }
 
       if (response.ok) {
         alert('비밀번호가 성공적으로 변경되었습니다.');
