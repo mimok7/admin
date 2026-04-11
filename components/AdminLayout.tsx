@@ -109,6 +109,7 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
     { id: 'sql-runner', label: 'SQL 실행', path: '/admin/sql-runner', icon: '⚡' },
     { id: 'database-schema', label: 'DB 스키마', path: '/admin/database-schema', icon: '🗃️' },
     { id: 'database', label: 'DB 관리', path: '/admin/database', icon: '🔧' },
+    { id: 'backup', label: '백업 관리', path: '/admin/backup', icon: '🗄️' },
     { id: 'packages', label: '패키지 관리', path: '/admin/packages', icon: '📦' },
     // 추가 섹션들 (페이지에서 activeTab으로 사용 중)
 
