@@ -1,0 +1,55 @@
+name: Daily Supabase Backup
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # UTC 18:00 = KST 03:00
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Set timestamp
+        run: echo "TS=$(date +%F_%H%M%S)" >> $GITHUB_ENV
+
+      - name: Install PostgreSQL client and gzip
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client gzip
+
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "SUPABASE_DB_URL secret is missing"
+            exit 1
+          fi
+
+          FILE="supabase_backup_${TS}.sql"
+          pg_dump --no-owner --no-privileges --dbname "$SUPABASE_DB_URL" --file "$FILE"
+          gzip -f "$FILE"
+          echo "BACKUP_FILE=${FILE}.gz" >> $GITHUB_ENV
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-backup-${{ env.TS }}
+          path: ${{ env.BACKUP_FILE }}
+          retention-days: 30
+
+      - name: Configure rclone (optional)
+        if: ${{ secrets.RCLONE_CONFIG_BASE64 != '' && secrets.RCLONE_REMOTE_PATH != '' }}
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONFIG_BASE64 }}" | base64 -d > ~/.config/rclone/rclone.conf
+
+      - name: Upload to cloud drive via rclone (optional)
+        if: ${{ secrets.RCLONE_CONFIG_BASE64 != '' && secrets.RCLONE_REMOTE_PATH != '' }}
+        run: |
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+          rclone copy "${BACKUP_FILE}" "${{ secrets.RCLONE_REMOTE_PATH }}" --create-empty-src-dirs
+          rclone lsf "${{ secrets.RCLONE_REMOTE_PATH }}" | tail -n 20

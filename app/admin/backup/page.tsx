@@ -100,6 +100,28 @@ export default function AdminBackupPage() {
           </div>
         </div>
 
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-indigo-100">
+          <h4 className="text-base font-semibold text-gray-900 mb-3">GitHub Actions 자동 백업 설정값</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+            <div className="bg-indigo-50 rounded-md p-4 border border-indigo-100">
+              <div className="font-semibold mb-2">필수 Secrets</div>
+              <ul className="space-y-1">
+                <li>1. `SUPABASE_DB_URL`</li>
+                <li>2. (선택) `RCLONE_CONFIG_BASE64`</li>
+                <li>3. (선택) `RCLONE_REMOTE_PATH`</li>
+              </ul>
+            </div>
+            <div className="bg-emerald-50 rounded-md p-4 border border-emerald-100">
+              <div className="font-semibold mb-2">실행 스케줄</div>
+              <ul className="space-y-1">
+                <li>1. 매일 UTC 18:00 (KST 03:00)</li>
+                <li>2. 수동 실행(workflow_dispatch) 지원</li>
+                <li>3. GitHub Artifact 30일 보관</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-base font-semibold text-gray-900">pg_dump 실행 예시</h4>
