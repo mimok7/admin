@@ -75,15 +75,24 @@ export default function ShtSeatPage() {
             re_type,
             re_created_at,
             reservation_date,
-            users:re_user_id (
-              name
-            )
+            re_user_id
           )
         `)
         .is('seat_number', null)
         .order('created_at', { ascending: false });
 
       if (fetchErr) throw fetchErr;
+
+      // reservations.re_user_id → users FK 제약이 없으므로 별도 조회
+      const userIds = [...new Set((data || []).map((r: any) => r.reservation?.re_user_id).filter(Boolean))];
+      const userNameMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id, name')
+          .in('id', userIds);
+        (userData || []).forEach((u: any) => { userNameMap[u.id] = u.name; });
+      }
 
       const normalized: ShtSeatRow[] = (data || []).map((r: any) => ({
         ...r,
@@ -92,7 +101,7 @@ export default function ShtSeatPage() {
         re_type: r.reservation?.re_type ?? null,
         re_created_at: r.reservation?.re_created_at ?? null,
         reservation_date: r.reservation?.reservation_date ?? null,
-        customer_name: r.reservation?.users?.name ?? null,
+        customer_name: userNameMap[r.reservation?.re_user_id] ?? null,
       }));
       setRows(normalized);
 
