@@ -117,6 +117,7 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
     { id: 'settings', label: '설정', path: '/admin/settings', icon: '⚙️' },
     { id: 'base-prices', label: '가격 동기화', path: '/admin/base-prices', icon: '🏷️' },
     { id: 'fix-quantities', label: '수량 수정', path: '/admin/fix-quantities', icon: '🛠️' },
+    { id: 'sht-seat', label: '스하좌석', path: '/admin/sht-seat', icon: '💺' },
   ];
 
   // 사이드바 최하단에 배치할 탭 분리 (예: settings)
