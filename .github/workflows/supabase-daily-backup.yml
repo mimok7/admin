@@ -34,14 +34,28 @@ jobs:
       - name: Dump database
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PGSSLMODE: require
         run: |
           if [ -z "$SUPABASE_DB_URL" ]; then
-            echo "SUPABASE_DB_URL secret is missing"
+            echo "::error::SUPABASE_DB_URL secret is missing"
+            echo "Supabase Dashboard > Project Settings > Database > Connection string > URI"
+            echo "반드시 Pooler(Session mode) URL을 사용하세요:"
+            echo "  postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres"
             exit 1
           fi
 
+          # GitHub Actions 에서는 Supabase 직접 연결(db.xxx:5432)이 차단될 수 있음.
+          # SUPABASE_DB_URL 은 반드시 Session-mode pooler URL 을 사용해야 함:
+          # postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
+
           FILE="supabase_backup_${TS}.dump"
-          pg_dump --no-owner --no-privileges --format=custom --dbname "$SUPABASE_DB_URL" --file "$FILE"
+          pg_dump \
+            --no-owner \
+            --no-privileges \
+            --format=custom \
+            --lock-wait-timeout=30000 \
+            --dbname "$SUPABASE_DB_URL" \
+            --file "$FILE"
           gzip -f "$FILE"
           echo "BACKUP_FILE=${FILE}.gz" >> $GITHUB_ENV
 
