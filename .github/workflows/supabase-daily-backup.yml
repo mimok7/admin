@@ -29,8 +29,8 @@ jobs:
             exit 1
           fi
 
-          FILE="supabase_backup_${TS}.sql"
-          pg_dump --no-owner --no-privileges --dbname "$SUPABASE_DB_URL" --file "$FILE"
+          FILE="supabase_backup_${TS}.dump"
+          pg_dump --no-owner --no-privileges --format=custom --dbname "$SUPABASE_DB_URL" --file "$FILE"
           gzip -f "$FILE"
           echo "BACKUP_FILE=${FILE}.gz" >> $GITHUB_ENV
 
