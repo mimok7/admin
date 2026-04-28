@@ -49,7 +49,7 @@ jobs:
           # postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
 
           FILE="supabase_backup_${TS}.dump"
-          pg_dump \
+          /usr/lib/postgresql/17/bin/pg_dump \
             --no-owner \
             --no-privileges \
             --format=custom \
