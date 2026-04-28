@@ -41,10 +41,15 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  // 세션 쿠키를 자동으로 갱신하기 위해 호출. 실패해도 응답은 그대로 반환하여
+  // 클라이언트 측 AuthWrapper 가 정상적으로 권한을 처리하도록 한다.
   try {
-    await getUserWithTimeout(supabase.auth, 5000);
+    await getUserWithTimeout(supabase.auth, 3000);
   } catch (error) {
-    console.warn('[middleware] auth getUser timeout/failure:', error);
+    // 타임아웃/네트워크 실패는 정상 케이스로 간주 - 페이지 진입 차단하지 않음
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[middleware] auth getUser skipped:', (error as any)?.message || error);
+    }
   }
 
   return response;

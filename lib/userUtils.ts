@@ -266,16 +266,23 @@ export const setupAuthListener = (onUserChange: (user: any, userData: any) => vo
       return;
     }
 
-    // Token refresh failure: token invalid/expired/rotated -> force sign out and clear state
+    // Token refresh failure: 일시적 네트워크 오류일 가능성이 높으므로 즉시 signOut 하지 않는다.
+    // 실제 세션 유효성을 한 번 더 확인 후, 정말 만료되었을 때만 정리한다.
     if (event === 'TOKEN_REFRESH_FAILED') {
-      console.warn('Auth listener: token refresh failed, signing out');
+      console.warn('[auth] token refresh failed - 세션 재확인 시도');
       try {
-        await supabase.auth.signOut();
+        const { data, error } = await supabase.auth.getSession();
+        if (error || !data?.session) {
+          // 세션이 정말 없을 때만 정리. signOut 호출은 생략(루프 방지)
+          clearCachedRole();
+          onUserChange(null, null);
+        } else {
+          // 세션이 살아있으면 사용자에게 영향 없이 계속 사용 가능
+          console.debug('[auth] 세션은 유효함 - 강제 로그아웃 생략');
+        }
       } catch (e) {
-        console.warn('Auth listener: signOut after refresh failure failed', e);
+        console.warn('[auth] 세션 재확인 실패 (네트워크 추정) - 상태 유지', e);
       }
-      clearCachedRole();
-      onUserChange(null, null);
       return;
     }
   });

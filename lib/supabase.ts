@@ -24,11 +24,11 @@ function initSupabase(): SupabaseClient | null {
   const client = createClient(url, key, {
     auth: isBrowser
       ? {
-        // 브라우저 종료 시 세션이 사라지도록 sessionStorage 사용
+        // 멀티탭 / 새로고침 / 일시적 네트워크 끊김에도 세션을 유지하도록 localStorage 사용
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storage: window.sessionStorage,
+        storage: window.localStorage,
       }
       : {
         // 서버 환경에서는 세션 저장 비활성화

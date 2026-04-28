@@ -66,11 +66,8 @@ export function AuthWrapper({ children, requiredRole, allowedRoles }: AuthWrappe
 
       console.log('🔍 AuthWrapper 최종 역할 결정:', { finalRole, cached, cookieRole, needsDbRole, profileError });
 
-      // 관리자 이메일 강제 설정 (임시)
-      if (authUser.email === 'admin@example.com' || authUser.email?.includes('admin')) {
-        finalRole = 'admin';
-        console.log('🚨 관리자 이메일 감지 - 강제로 admin 권한 설정:', authUser.email);
-      }
+      // (보안) 이메일 패턴으로 admin 권한을 강제하는 로직은 제거됨.
+      // 권한은 반드시 users.role(DB) 또는 캐시된 DB 값만 신뢰한다.
 
       const userProfile: UserProfile = {
         id: authUser.id,
