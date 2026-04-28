@@ -24,6 +24,9 @@ interface ShtSeatRow {
   order_id: string | null;
   re_status: string | null;
   re_type: string | null;
+  re_created_at: string | null;  // 예약일
+  reservation_date: string | null; // 사용일(예약 기준)
+  customer_name: string | null;    // 예약자 이름
 }
 
 const VEHICLE_LABEL: Record<string, string> = {
@@ -69,7 +72,12 @@ export default function ShtSeatPage() {
           reservation:reservation_id (
             order_id,
             re_status,
-            re_type
+            re_type,
+            re_created_at,
+            reservation_date,
+            users:re_user_id (
+              name
+            )
           )
         `)
         .is('seat_number', null)
@@ -82,6 +90,9 @@ export default function ShtSeatPage() {
         order_id: r.reservation?.order_id ?? null,
         re_status: r.reservation?.re_status ?? null,
         re_type: r.reservation?.re_type ?? null,
+        re_created_at: r.reservation?.re_created_at ?? null,
+        reservation_date: r.reservation?.reservation_date ?? null,
+        customer_name: r.reservation?.users?.name ?? null,
       }));
       setRows(normalized);
 
@@ -271,6 +282,9 @@ export default function ShtSeatPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">예약자</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">예약일</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">사용일</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">주문번호</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">가격 코드</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">차량 유형</th>
@@ -278,7 +292,6 @@ export default function ShtSeatPage() {
                 <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 whitespace-nowrap">구분</th>
                 <th className="px-3 py-3 text-right text-xs font-semibold text-gray-600 whitespace-nowrap">단가</th>
                 <th className="px-3 py-3 text-right text-xs font-semibold text-gray-600 whitespace-nowrap">합계금액</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">픽업일</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">픽업지</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">차량번호</th>
                 <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 whitespace-nowrap">상태</th>
@@ -288,14 +301,14 @@ export default function ShtSeatPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={12} className="text-center py-12 text-gray-400">
+                  <td colSpan={15} className="text-center py-12 text-gray-400">
                     <div className="text-3xl mb-2">⏳</div>데이터 불러오는 중...
                   </td>
                 </tr>
               )}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="text-center py-12 text-gray-400">
+                  <td colSpan={15} className="text-center py-12 text-gray-400">
                     <div className="text-3xl mb-2">✅</div>좌석 미배정 예약이 없습니다.
                   </td>
                 </tr>
@@ -305,6 +318,15 @@ export default function ShtSeatPage() {
                   key={row.id}
                   className={`border-b border-gray-100 hover:bg-blue-50/30 transition-colors ${idx % 2 === 0 ? '' : 'bg-gray-50/40'}`}
                 >
+                  <td className="px-3 py-2 text-xs font-semibold text-gray-800 whitespace-nowrap">
+                    {row.customer_name ?? <span className="text-gray-300">-</span>}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                    {formatDate(row.re_created_at)}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-blue-600 font-semibold whitespace-nowrap">
+                    {formatDate(row.reservation_date ?? row.usage_date ?? row.pickup_datetime)}
+                  </td>
                   <td className="px-3 py-2 text-xs text-gray-500 font-mono">
                     {row.order_id ?? <span className="text-gray-300">-</span>}
                   </td>
@@ -331,9 +353,6 @@ export default function ShtSeatPage() {
                   </td>
                   <td className="px-3 py-2 text-right text-xs font-semibold text-gray-800 whitespace-nowrap">
                     {formatPrice(row.car_total_price)}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">
-                    {formatDate(row.pickup_datetime ?? row.usage_date)}
                   </td>
                   <td className="px-3 py-2 text-xs text-gray-600 max-w-[120px] truncate" title={row.pickup_location ?? ''}>
                     {row.pickup_location ?? '-'}
