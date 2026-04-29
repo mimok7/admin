@@ -9,10 +9,11 @@ export default function BackupRestoreGuidePage() {
           <p className="text-sm text-gray-600 mt-2">
             이 페이지는 백업 생성, 복원 방식 선택, 즉시 복원 실행, 문제 해결까지 운영자가 한 번에 확인할 수 있도록 정리한 가이드입니다.
           </p>
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
             <a href="#env" className="px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100">1. 환경 설정</a>
             <a href="#restore-methods" className="px-3 py-2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100">2. 복원 방법</a>
             <a href="#troubleshooting" className="px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100">3. 오류 해결</a>
+            <a href="#verify" className="px-3 py-2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100">4. 복원 검증</a>
           </div>
         </section>
 
@@ -112,6 +113,61 @@ SUPABASE_DB_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.po
                 "FK 의존 테이블 자동 포함" 옵션을 사용하면 서버가 참조 관계를 자동 탐지해 함께 복원합니다.
               </p>
             </div>
+          </div>
+        </section>
+
+        <section id="verify" className="bg-white rounded-lg shadow-sm p-6 border border-emerald-100">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-base font-semibold text-gray-900">5) 자동 복원 검증 (Restore Drill)</h3>
+            <a
+              href="/admin/backup/verify"
+              className="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              🔬 검증 페이지 열기
+            </a>
+          </div>
+          <p className="text-sm text-gray-700 mt-2">
+            "백업 성공"이 아니라 "실제 복원 가능"을 매일 자동 증명합니다.
+            GitHub Actions가 임시 PostgreSQL DB에 최신 백업을 복원하고 무결성을 검사합니다.
+          </p>
+
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-md bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-900">
+              <p className="font-semibold">동작 흐름</p>
+              <ol className="list-decimal ml-4 mt-1 space-y-0.5 text-xs text-emerald-800">
+                <li>최신 supabase-backup artifact 자동 선택</li>
+                <li>임시 PostgreSQL 17 인스턴스 기동</li>
+                <li>SHA256 해시 계산 후 dump 복원</li>
+                <li>sql/backup_restore_verify.sql 실행</li>
+                <li>실패 시 자동으로 GitHub Issue 생성</li>
+              </ol>
+            </div>
+            <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+              <p className="font-semibold">FAIL 판정 기준</p>
+              <ul className="list-disc ml-4 mt-1 space-y-0.5 text-xs text-amber-800">
+                <li>최신 백업이 36시간 초과</li>
+                <li>artifact 다운로드/추출 실패</li>
+                <li>pg_restore 실행 실패</li>
+                <li>public 테이블 수 5 미만</li>
+                <li>users 테이블 부재 또는 0건</li>
+                <li>unvalidated FK 존재</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">
+            <p className="font-semibold">알림 정책 권장안</p>
+            <ul className="list-disc ml-4 mt-1 space-y-0.5 text-xs text-blue-800">
+              <li>Critical: 검증 FAIL → 즉시 담당자 호출 + 당일 수동 리허설</li>
+              <li>High: 36시간 초과 / 백업 누락 → 4시간 이내 점검</li>
+              <li>Medium: row 수/사이즈 급감(전일 대비 -40~50%) → 일일 리포트 검토</li>
+              <li>운영 규칙: 2일 연속 FAIL → 배포/스키마 변경 중단</li>
+            </ul>
+          </div>
+
+          <div className="mt-3 text-xs text-gray-600">
+            관련 파일: <code>.github/workflows/backup-restore-verify.yml</code> ·{' '}
+            <code>sql/backup_restore_verify.sql</code>
           </div>
         </section>
       </div>

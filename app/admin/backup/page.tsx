@@ -326,6 +326,12 @@ export default function AdminBackupPage() {
                       상세 복원 지침 보기
                     </a>
                     <a
+                      href="/admin/backup/verify"
+                      className="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                      🔬 복원 검증 페이지
+                    </a>
+                    <a
                       href="/admin/backup/guide#troubleshooting"
                       className="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200"
                     >

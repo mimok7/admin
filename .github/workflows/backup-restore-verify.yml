@@ -1,0 +1,210 @@
+name: Backup Restore Verification
+
+on:
+  schedule:
+    - cron: '30 18 * * *' # UTC 18:30 = KST 03:30 (일일 백업 30분 후)
+  workflow_dispatch:
+    inputs:
+      artifact_id:
+        description: '검증할 백업 Artifact ID (비우면 최신)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  verify-restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: restore_verify
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d restore_verify"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools (jq, unzip, pg client 17)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq unzip curl ca-certificates gnupg lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | \
+            sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          pg_restore --version
+          psql --version
+
+      - name: Resolve target artifact
+        id: artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          INPUT_ARTIFACT_ID: ${{ inputs.artifact_id }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_ARTIFACT_ID:-}" ]; then
+            ARTIFACT_ID="${INPUT_ARTIFACT_ID}"
+          else
+            LIST=$(curl -fsSL \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              "https://api.github.com/repos/${REPO}/actions/artifacts?per_page=100")
+            ARTIFACT_ID=$(echo "${LIST}" | jq -r '.artifacts
+              | map(select(.expired == false))
+              | map(select(.name | test("^supabase[-_]backup")))
+              | sort_by(.created_at) | reverse | .[0].id // empty')
+            if [ -z "${ARTIFACT_ID}" ]; then
+              echo "::error::검증할 백업 artifact를 찾지 못했습니다."
+              exit 1
+            fi
+          fi
+
+          META=$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${REPO}/actions/artifacts/${ARTIFACT_ID}")
+          NAME=$(echo "${META}" | jq -r '.name')
+          CREATED_AT=$(echo "${META}" | jq -r '.created_at')
+          EXPIRED=$(echo "${META}" | jq -r '.expired')
+          SIZE=$(echo "${META}" | jq -r '.size_in_bytes')
+
+          if [ "${EXPIRED}" = "true" ]; then
+            echo "::error::선택된 artifact가 만료되었습니다."
+            exit 1
+          fi
+
+          CREATED_EPOCH=$(date -u -d "${CREATED_AT}" +%s)
+          NOW_EPOCH=$(date -u +%s)
+          AGE_HOURS=$(( (NOW_EPOCH - CREATED_EPOCH) / 3600 ))
+
+          echo "artifact_id=${ARTIFACT_ID}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=${NAME}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_created_at=${CREATED_AT}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_age_hours=${AGE_HOURS}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_size=${SIZE}" >> "${GITHUB_OUTPUT}"
+
+          if [ "${AGE_HOURS}" -gt 36 ]; then
+            echo "::error::최신 백업이 36시간 이상 경과했습니다. (age=${AGE_HOURS}h)"
+            exit 1
+          fi
+
+      - name: Download artifact zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ARTIFACT_ID: ${{ steps.artifact.outputs.artifact_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p restore_artifact
+          curl -fL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${REPO}/actions/artifacts/${ARTIFACT_ID}/zip" \
+            -o restore_artifact/artifact.zip
+          unzip -o restore_artifact/artifact.zip -d restore_artifact
+
+      - name: Compute SHA256 of dump
+        id: hash
+        run: |
+          set -euo pipefail
+          DUMP_PATH=$(find restore_artifact -type f \( -name "*.dump.gz" -o -name "*.dump" \) | head -n 1)
+          if [ -z "${DUMP_PATH}" ]; then
+            echo "::error::artifact 내부에서 .dump(.gz) 파일을 찾지 못했습니다."
+            exit 1
+          fi
+          SHA=$(sha256sum "${DUMP_PATH}" | awk '{print $1}')
+          echo "sha256=${SHA}" >> "${GITHUB_OUTPUT}"
+          echo "dump_path=${DUMP_PATH}" >> "${GITHUB_OUTPUT}"
+
+      - name: Prepare dump file (gunzip if needed)
+        id: dump
+        run: |
+          set -euo pipefail
+          DUMP_PATH="${{ steps.hash.outputs.dump_path }}"
+          if echo "${DUMP_PATH}" | grep -qE "\.gz$"; then
+            gunzip -c "${DUMP_PATH}" > restore_artifact/restore.dump
+            FINAL_DUMP="restore_artifact/restore.dump"
+          else
+            FINAL_DUMP="${DUMP_PATH}"
+          fi
+          echo "dump_file=${FINAL_DUMP}" >> "${GITHUB_OUTPUT}"
+          ls -lh "${FINAL_DUMP}"
+
+      - name: Restore to temporary DB
+        env:
+          PGURL: postgresql://postgres:postgres@localhost:5432/restore_verify
+          PGSSLMODE: disable
+        run: |
+          set -euo pipefail
+          /usr/lib/postgresql/17/bin/pg_restore \
+            --no-owner \
+            --no-privileges \
+            --clean \
+            --if-exists \
+            --dbname "${PGURL}" \
+            "${{ steps.dump.outputs.dump_file }}"
+
+      - name: Run integrity SQL checks
+        env:
+          PGURL: postgresql://postgres:postgres@localhost:5432/restore_verify
+          PGSSLMODE: disable
+        run: |
+          set -euo pipefail
+          psql "${PGURL}" -v ON_ERROR_STOP=1 -f sql/backup_restore_verify.sql
+
+      - name: Build workflow summary
+        if: always()
+        run: |
+          {
+            echo "## Restore Verification Summary"
+            echo ""
+            echo "- artifact: ${{ steps.artifact.outputs.artifact_name }}"
+            echo "- artifact_id: ${{ steps.artifact.outputs.artifact_id }}"
+            echo "- created_at(UTC): ${{ steps.artifact.outputs.artifact_created_at }}"
+            echo "- age_hours: ${{ steps.artifact.outputs.artifact_age_hours }}"
+            echo "- size_bytes: ${{ steps.artifact.outputs.artifact_size }}"
+            echo "- sha256: ${{ steps.hash.outputs.sha256 }}"
+            echo "- result: ${{ job.status }}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Open issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Restore verification failed: ${context.runId}`;
+            const body = [
+              `**Workflow run**: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              `**Artifact**: ${{ steps.artifact.outputs.artifact_name }} (id=${{ steps.artifact.outputs.artifact_id }})`,
+              `**Created at**: ${{ steps.artifact.outputs.artifact_created_at }}`,
+              `**Age (hours)**: ${{ steps.artifact.outputs.artifact_age_hours }}`,
+              `**SHA256**: ${{ steps.hash.outputs.sha256 }}`,
+              ``,
+              `Restore drill 실패. 즉시 수동 검증 및 백업 정책 점검 필요.`,
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['backup', 'incident'],
+            });
