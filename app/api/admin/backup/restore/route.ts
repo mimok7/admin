@@ -90,12 +90,12 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const body = await req.json();
-    const { artifactId, tables = [], confirmText, truncateBefore = false } = body;
+    const { artifactId, tables: requestedTables = [], confirmText, truncateBefore = false, includeDependents = true } = body;
 
     if (!artifactId) {
       return NextResponse.json({ error: 'artifactId는 필수입니다.' }, { status: 400 });
     }
-    if (!Array.isArray(tables) || tables.length === 0) {
+    if (!Array.isArray(requestedTables) || requestedTables.length === 0) {
       return NextResponse.json({ error: '복원할 테이블을 선택해주세요.' }, { status: 400 });
     }
     if (confirmText !== 'RESTORE') {
@@ -185,17 +185,74 @@ export async function POST(req: NextRequest) {
     // 4. pg_restore 실행
     const execPromise = promisify(exec);
 
-    // 4-0. (옵션) 기존 데이터 TRUNCATE
-    let truncateOutput = '';
-    if (truncateBefore) {
-      const psqlPath = getPsqlPathFrom(pgRestore);
+    // 입력 테이블 검증
+    const validRequested = requestedTables.filter((t: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(t));
+    if (validRequested.length === 0) {
+      return NextResponse.json({ error: '유효한 테이블 이름이 없습니다.' }, { status: 400 });
+    }
+
+    // 4-pre. FK 의존성 자동 확장 (선택 테이블을 참조하는 모든 테이블 재귀 탐색)
+    const psqlPath = getPsqlPathFrom(pgRestore);
+    let tables: string[] = [...validRequested];
+    let addedDependents: string[] = [];
+    if (includeDependents) {
       if (!existsSync(psqlPath) && psqlPath !== 'psql') {
         return NextResponse.json(
           { error: `psql을 찾을 수 없습니다: ${psqlPath}` },
           { status: 500 }
         );
       }
-      // 안전한 식별자만 허용 (영숫자/밑줄)
+      const arrLiteral = '{' + validRequested.join(',') + '}';
+      const depsSql = `
+WITH RECURSIVE deps AS (
+  SELECT c.oid, c.relname
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public' AND c.relname = ANY('${arrLiteral}'::text[])
+  UNION
+  SELECT c.oid, c.relname
+  FROM pg_constraint con
+  JOIN pg_class c ON c.oid = con.conrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  JOIN deps d ON con.confrelid = d.oid
+  WHERE con.contype = 'f' AND n.nspname = 'public'
+)
+SELECT relname FROM deps;`.trim().replace(/\s+/g, ' ');
+      const depsCmd = `"${psqlPath}" "${dbUrl}" -At -v ON_ERROR_STOP=1 -c "${depsSql.replace(/"/g, '\\"')}"`;
+      try {
+        const r = await execPromise(depsCmd, {
+          env: { ...process.env, PGSSLMODE: 'require', PGCLIENTENCODING: 'UTF8', LC_MESSAGES: 'C', LANG: 'C' },
+          timeout: 30000,
+          maxBuffer: 5 * 1024 * 1024,
+        });
+        const found = (r.stdout || '')
+          .split(/\r?\n/)
+          .map((s) => s.trim())
+          .filter((s) => s && /^[A-Za-z_][A-Za-z0-9_]*$/.test(s));
+        const requestedSet = new Set(validRequested);
+        addedDependents = Array.from(new Set(found)).filter((t) => !requestedSet.has(t));
+        tables = Array.from(new Set([...validRequested, ...addedDependents]));
+      } catch (err: any) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'FK 의존성 조회 실패',
+            stderr: (err.stderr || err.message || '').slice(0, 5000),
+          },
+          { status: 500 }
+        );
+      }
+    }
+
+    // 4-0. (옵션) 기존 데이터 TRUNCATE
+    let truncateOutput = '';
+    if (truncateBefore) {
+      if (!existsSync(psqlPath) && psqlPath !== 'psql') {
+        return NextResponse.json(
+          { error: `psql을 찾을 수 없습니다: ${psqlPath}` },
+          { status: 500 }
+        );
+      }
       const safeTables = tables.filter((t: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(t));
       if (safeTables.length === 0) {
         return NextResponse.json(
@@ -263,6 +320,8 @@ export async function POST(req: NextRequest) {
       ok: true,
       message: '복원이 완료되었습니다.',
       restoredTables: tables,
+      requestedTables: validRequested,
+      addedDependents,
       truncated: truncateBefore,
       truncateOutput: truncateOutput.slice(0, 2000),
       stdout: stdout.slice(0, 2000),

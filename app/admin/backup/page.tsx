@@ -67,8 +67,9 @@ export default function AdminBackupPage() {
   const [generatedScript, setGeneratedScript] = useState<GeneratedScript | null>(null);
   const [confirmText, setConfirmText] = useState<string>('');
   const [truncateBefore, setTruncateBefore] = useState<boolean>(true);
+  const [includeDependents, setIncludeDependents] = useState<boolean>(true);
   const [restoring, setRestoring] = useState(false);
-  const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message?: string; stdout?: string; stderr?: string; error?: string; stack?: string; code?: string } | null>(null);
+  const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message?: string; stdout?: string; stderr?: string; error?: string; stack?: string; code?: string; restoredTables?: string[]; addedDependents?: string[]; truncated?: boolean } | null>(null);
 
   const today = useMemo(() => {
     return new Date().toLocaleString('ko-KR', {
@@ -235,6 +236,7 @@ export default function AdminBackupPage() {
           tables: selectedTables,
           confirmText,
           truncateBefore,
+          includeDependents,
         }),
       });
 
@@ -620,6 +622,21 @@ export default function AdminBackupPage() {
                           </span>
                         </span>
                       </label>
+                      <label className="flex items-start gap-2 mt-2 text-xs text-red-900 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={includeDependents}
+                          onChange={(e) => setIncludeDependents(e.target.checked)}
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <strong>FK 의존 테이블 자동 포함</strong>
+                          <br />
+                          <span className="text-red-700">
+                            선택 테이블을 외래키로 참조하는 모든 테이블을 자동으로 찾아 함께 TRUNCATE/복원합니다. (CASCADE로 인한 데이터 손실 방지)
+                          </span>
+                        </span>
+                      </label>
                     </div>
 
                     {restoreResult && !restoreResult.ok && (
@@ -676,6 +693,21 @@ export default function AdminBackupPage() {
                     <p className="text-sm text-gray-600">
                       서버에서 직접 복원이 완료되었습니다.
                     </p>
+                    {restoreResult.addedDependents && restoreResult.addedDependents.length > 0 && (
+                      <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs">
+                        <p className="font-semibold text-blue-900 mb-1">
+                          🔗 자동 포함된 의존 테이블 ({restoreResult.addedDependents.length}개)
+                        </p>
+                        <p className="font-mono text-blue-800 break-all">
+                          {restoreResult.addedDependents.join(', ')}
+                        </p>
+                      </div>
+                    )}
+                    {restoreResult.restoredTables && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        총 복원 테이블: {restoreResult.restoredTables.length}개
+                      </p>
+                    )}
                     {(restoreResult.stdout || restoreResult.stderr) && (
                       <div className="mt-4 bg-gray-900 text-gray-100 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
                         {restoreResult.stdout}
