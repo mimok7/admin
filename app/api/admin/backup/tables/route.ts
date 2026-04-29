@@ -40,26 +40,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY 미설정' }, { status: 500 });
     }
 
-    // DB 테이블 목록 조회 (information_schema)
-    const { data, error } = await serviceSupabase.rpc('exec_sql', {
-      query: `
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        ORDER BY table_name
-      `,
-    });
-
-    if (error) {
-      return NextResponse.json(
-        { error: '테이블 목록 조회 실패', detail: error.message },
-        { status: 500 }
-      );
-    }
-
-    const tables = (data || [])
-      .map((row: any) => row.table_name)
-      .filter((name: string) => !name.startsWith('_') && name !== 'migrations');
+    // DB의 공개 테이블 목록 조회
+    // 참고: 실제 복원할 수 있는 사용자 데이터 테이블만 포함
+    const tables = [
+      'users',
+      'quotes',
+      'quote_items',
+      'quote_room_details',
+      'reservations',
+      'reservation_items',
+      'base_prices',
+      'car_prices',
+      'room_prices',
+      'cruise_prices',
+      'exchange_rates',
+      'notifications',
+    ].sort();
 
     return NextResponse.json({
       ok: true,
