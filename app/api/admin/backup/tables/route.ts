@@ -36,43 +36,49 @@ export async function GET(req: NextRequest) {
     const auth = await checkAdmin(req);
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-    // 모든 복원 가능한 테이블 목록
-    // 공개 스키마의 모든 사용자 데이터 테이블 포함
-    const tables = [
-      'users',
-      'quotes',
-      'quote_items',
-      'quote_room_details',
-      'reservations',
-      'reservation_items',
-      'reservation_totals',
-      'base_prices',
-      'car_prices',
-      'car_price_details',
-      'room_prices',
-      'room_price_details',
-      'cruise_prices',
-      'cruise_price_details',
-      'exchange_rates',
-      'notifications',
-      'settings',
-      'audit_logs',
-      'sessions',
-      'service_configs',
-      'payment_records',
-      'sync_logs',
-      'user_roles',
-      'permissions',
-      'tenant_settings',
-    ]
-      .filter((name: string) => name && !name.startsWith('_'))
-      .sort();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    return NextResponse.json({
-      ok: true,
-      count: tables.length,
-      tables: tables,
-    });
+    if (!supabaseUrl || !serviceKey) {
+      return NextResponse.json(
+        { error: 'Supabase 환경변수가 설정되지 않았습니다' },
+        { status: 500 }
+      );
+    }
+
+    // Supabase PostgREST OpenAPI 스펙을 통해 모든 테이블 동적 조회
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/`, {
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          Accept: 'application/openapi+json',
+        },
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        throw new Error(`PostgREST API 오류 ${res.status}`);
+      }
+
+      const spec = await res.json();
+      const definitions = spec.definitions || {};
+      const tables = Object.keys(definitions)
+        .filter((name) => name && !name.startsWith('_'))
+        .sort();
+
+      return NextResponse.json({
+        ok: true,
+        count: tables.length,
+        tables: tables,
+      });
+    } catch (err: any) {
+      console.error('테이블 조회 실패:', err.message);
+      return NextResponse.json(
+        { error: '테이블 목록 조회 실패', detail: err.message },
+        { status: 500 }
+      );
+    }
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || '서버 오류' }, { status: 500 });
   }
