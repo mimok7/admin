@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import AdminLayout from '@/components/AdminLayout';
-import getSupabase from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 const SERVICE_OPTIONS: { key: string; label: string; table: string }[] = [
   { key: 'cruise', label: '크루즈', table: 'reservation_cruise' },
