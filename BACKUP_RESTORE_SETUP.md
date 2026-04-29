@@ -46,13 +46,18 @@ SUPABASE_DB_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.po
 1. 백업 파일 선택
 2. 복원할 테이블 선택
 3. 확인 단계에서 `RESTORE` 입력
-4. `즉시 복원 실행` 클릭
-5. 결과 로그 확인
+4. `FK 의존 테이블 자동 포함` 확인 (기본 ON)
+5. `기존 데이터 삭제(TRUNCATE) 후 복원` 확인 (기본 ON)
+6. `즉시 복원 실행` 클릭
+7. 결과 로그 확인
 
 동작:
 - 서버가 GitHub Artifact zip 다운로드
 - zip/gzip 해제 후 `.dump` 추출
+- FK 의존 테이블(하위 참조 테이블) 재귀 탐색 후 복원 목록 자동 확장
+- 선택/의존 테이블에 `TRUNCATE ... RESTART IDENTITY CASCADE` 선실행(옵션 ON 시)
 - `pg_restore` 실행
+- 완료 시 자동 포함된 의존 테이블 목록 확인 가능
 
 ### B) 스크립트 생성 후 수동 복원 (안전 모드)
 경로: `/admin/backup` → 복원 마법사
@@ -77,9 +82,15 @@ SUPABASE_DB_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.po
 {
   "artifactId": "123456789",
   "tables": ["users", "reservations"],
-  "confirmText": "RESTORE"
+  "confirmText": "RESTORE",
+  "truncateBefore": true,
+  "includeDependents": true
 }
 ```
+
+요청 필드 설명:
+- `truncateBefore`: 복원 전 기존 데이터 삭제 여부 (권장: true)
+- `includeDependents`: FK 의존 테이블 자동 포함 여부 (권장: true)
 
 ---
 
@@ -119,6 +130,24 @@ SUPABASE_DB_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.po
 조치:
 1. PostgreSQL 17 클라이언트 설치
 2. 필요 시 `PG_RESTORE_PATH` 환경변수 지정
+
+### duplicate key value violates unique constraint
+원인:
+- 기존 데이터가 남아 있는 상태에서 data-only 복원을 수행하여 PK 충돌 발생
+
+조치:
+1. 확인 단계에서 `기존 데이터 삭제(TRUNCATE) 후 복원`을 ON
+2. `FK 의존 테이블 자동 포함`을 ON 유지
+3. 재실행 후 stderr의 `ERROR:` 유무 확인
+
+### 어떤 테이블이 연결되어 있는지 모를 때
+원인:
+- 운영자가 FK 관계를 모두 알기 어려움
+
+조치:
+1. `FK 의존 테이블 자동 포함` ON 상태로 복원 실행
+2. 완료 화면의 `자동 포함된 의존 테이블` 목록 확인
+3. 다음 복원 작업 시 해당 목록을 기준으로 복원 단위를 결정
 
 ---
 
