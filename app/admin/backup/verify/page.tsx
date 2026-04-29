@@ -25,13 +25,14 @@ type VerifyData = {
   report?: {
     generatedAt: string;
     sourceCompared: boolean;
+    sourceCutoff?: string | null;
     scores: {
       structure: number;
       rowCount: number;
       sample: number;
       total: number;
     };
-    rowComparisons: Array<{ table: string; source: string; restored: string; matched: boolean }>;
+    rowComparisons: Array<{ table: string; source: string; restored: string; diff?: number | null; matched: boolean }>;
     checksumComparisons: Array<{ table: string; source: string; restored: string; matched: boolean }>;
   } | null;
 };
@@ -275,6 +276,14 @@ export default function BackupVerifyPage() {
               {report ? (report.sourceCompared ? ' · 원본 DB 비교 포함' : ' · 원본 DB 미설정으로 복원본 단독 평가') : ''}
             </p>
 
+            {report?.sourceCompared && (
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 space-y-1">
+                <div>⏰ 비교 시점(cutoff): <code>{report.sourceCutoff || '적용 안됨'}</code></div>
+                <div>→ 원본 DB에서 <code>created_at &lt;= cutoff</code> 조건으로 집계한 값을 사용해 "백업 시점 스냅샷"과 동일 조건으로 비교합니다.</div>
+                <div>→ created_at 컬럼이 없는 테이블은 전체 대상으로 비교하므로 소폭 차이가 나타날 수 있습니다.</div>
+              </div>
+            )}
+
             {report && (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <div className="rounded-md border border-gray-200 overflow-hidden">
@@ -286,6 +295,7 @@ export default function BackupVerifyPage() {
                           <th className="px-3 py-2 text-left">테이블</th>
                           <th className="px-3 py-2 text-left">원본</th>
                           <th className="px-3 py-2 text-left">복원</th>
+                          <th className="px-3 py-2 text-left">차이</th>
                           <th className="px-3 py-2 text-left">일치</th>
                         </tr>
                       </thead>
@@ -295,6 +305,9 @@ export default function BackupVerifyPage() {
                             <td className="px-3 py-2 font-medium text-gray-900">{r.table}</td>
                             <td className="px-3 py-2 text-gray-700">{r.source}</td>
                             <td className="px-3 py-2 text-gray-700">{r.restored}</td>
+                            <td className={`px-3 py-2 ${r.diff && r.diff !== 0 ? 'text-amber-700 font-semibold' : 'text-gray-500'}`}>
+                              {typeof r.diff === 'number' ? (r.diff > 0 ? `+${r.diff}` : r.diff) : '-'}
+                            </td>
                             <td className={`px-3 py-2 font-semibold ${r.matched ? 'text-emerald-700' : 'text-rose-700'}`}>
                               {r.matched ? 'PASS' : 'FAIL'}
                             </td>

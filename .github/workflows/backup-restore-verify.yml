@@ -276,13 +276,17 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           PGSSLMODE: require
+          ARTIFACT_CREATED_AT: ${{ steps.artifact.outputs.artifact_created_at }}
         run: |
           set +e
           if [ -z "${SUPABASE_DB_URL:-}" ]; then
             echo "SUPABASE_DB_URL not set; source comparison will be skipped."
             exit 0
           fi
-          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=0 -f sql/backup_restore_core_metrics.sql > restore_artifact/source_metrics_output.txt 2> restore_artifact/source_metrics_stderr.txt
+          # 백업 시점(artifact created_at) 기준으로 원본을 동일 스냅샷처럼 비교
+          CUTOFF="${ARTIFACT_CREATED_AT:-}"
+          echo "Using cutoff_ts=${CUTOFF}"
+          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=0 -v "cutoff_ts=${CUTOFF}" -f sql/backup_restore_core_metrics.sql > restore_artifact/source_metrics_output.txt 2> restore_artifact/source_metrics_stderr.txt
           STATUS=$?
           echo "psql exit: ${STATUS}"
           echo "--- stdout (head) ---"; head -n 50 restore_artifact/source_metrics_output.txt || true
@@ -330,11 +334,25 @@ jobs:
           const source = parseMetrics(sourceFile);
           const hasSource = fs.existsSync(sourceFile) && Object.keys(source.row).length > 0;
 
+          // cutoff_ts 파싱(VERIFY|CUTOFF|cutoff_ts|VALUE)
+          function parseCutoff(filePath) {
+            if (!fs.existsSync(filePath)) return null;
+            for (const raw of fs.readFileSync(filePath, 'utf8').split(/\r?\n/)) {
+              const m = raw.trim().match(/^VERIFY\|CUTOFF\|cutoff_ts\|(.+)$/);
+              if (m) return m[1] === 'NONE' ? null : m[1];
+            }
+            return null;
+          }
+          const sourceCutoff = parseCutoff(sourceFile);
+
           const rowComparisons = coreTables.map((table) => {
             const restoredValue = restored.row[table] ?? 'MISSING';
             const sourceValue = hasSource ? (source.row[table] ?? 'MISSING') : 'N/A';
+            const rNum = Number(restoredValue);
+            const sNum = Number(sourceValue);
+            const diff = (Number.isFinite(rNum) && Number.isFinite(sNum)) ? rNum - sNum : null;
             const matched = hasSource ? restoredValue === sourceValue : restoredValue !== 'MISSING';
-            return { table, source: sourceValue, restored: restoredValue, matched };
+            return { table, source: sourceValue, restored: restoredValue, diff, matched };
           });
 
           const checksumComparisons = coreTables.map((table) => {
@@ -352,6 +370,7 @@ jobs:
           const report = {
             generatedAt: new Date().toISOString(),
             sourceCompared: hasSource,
+            sourceCutoff,
             scores: {
               structure: structureScore,
               rowCount: rowScore,
