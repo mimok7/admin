@@ -65,6 +65,9 @@ export default function AdminBackupPage() {
   const [success, setSuccess] = useState<string>('');
   const [restoreStep, setRestoreStep] = useState<RestoreStep>('select');
   const [generatedScript, setGeneratedScript] = useState<GeneratedScript | null>(null);
+  const [confirmText, setConfirmText] = useState<string>('');
+  const [restoring, setRestoring] = useState(false);
+  const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message?: string; stdout?: string; stderr?: string } | null>(null);
 
   const today = useMemo(() => {
     return new Date().toLocaleString('ko-KR', {
@@ -201,6 +204,52 @@ export default function AdminBackupPage() {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+  };
+
+  const executeRestore = async () => {
+    if (!selectedArtifact || selectedTables.length === 0) return;
+    if (confirmText !== 'RESTORE') {
+      setError('확인 텍스트로 "RESTORE"를 입력하세요.');
+      return;
+    }
+    if (!confirm(`정말로 ${selectedTables.length}개 테이블을 덮어쓰시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    setRestoring(true);
+    setError('');
+    setRestoreResult(null);
+
+    try {
+      const { data: { session } } = await getSupabase().auth.getSession();
+      const authHeaders: Record<string, string> = session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+
+      const res = await fetch('/api/admin/backup/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({
+          artifactId: selectedArtifact.id,
+          tables: selectedTables,
+          confirmText,
+        }),
+      });
+
+      const data = await res.json();
+      setRestoreResult(data);
+
+      if (res.ok && data.ok) {
+        setSuccess(`복원 완료: ${selectedTables.length}개 테이블`);
+        setRestoreStep('complete');
+      } else {
+        setError(data.error || '복원 실패');
+      }
+    } catch (e: any) {
+      setError(e.message || '복원 실행 중 오류 발생');
+    } finally {
+      setRestoring(false);
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -514,36 +563,86 @@ export default function AdminBackupPage() {
                         ))}
                       </div>
                     </div>
+
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <p className="text-sm font-semibold text-red-900 mb-2">🚨 직접 복원 실행 (서버에서 즉시 적용)</p>
+                      <p className="text-xs text-red-800 mb-3">
+                        확인을 위해 아래에 <code className="bg-red-100 px-1 rounded font-mono">RESTORE</code>를 입력하세요.
+                      </p>
+                      <input
+                        type="text"
+                        value={confirmText}
+                        onChange={(e) => setConfirmText(e.target.value)}
+                        placeholder="RESTORE 입력"
+                        className="w-full px-3 py-2 border border-red-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-400"
+                      />
+                    </div>
+
+                    {restoreResult && !restoreResult.ok && (restoreResult.stderr || restoreResult.message) && (
+                      <div className="bg-gray-900 text-gray-100 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
+                        {restoreResult.stderr || restoreResult.message}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex gap-3 justify-end">
+                <div className="flex gap-3 justify-end flex-wrap">
                   <button
                     onClick={() => setRestoreStep('tables')}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                    disabled={restoring}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50"
                   >
                     ← 이전
                   </button>
                   <button
                     onClick={generateRestoreScript}
-                    disabled={loading}
-                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 rounded-lg"
+                    disabled={loading || restoring}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 rounded-lg"
                   >
-                    {loading ? '생성 중...' : '복원 스크립트 생성'}
+                    {loading ? '생성 중...' : '📄 스크립트 생성 (수동 실행)'}
+                  </button>
+                  <button
+                    onClick={executeRestore}
+                    disabled={restoring || confirmText !== 'RESTORE'}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-400 rounded-lg"
+                  >
+                    {restoring ? '복원 중...' : '🚨 즉시 복원 실행'}
                   </button>
                 </div>
               </div>
             )}
 
             {/* Step 4: 완료 */}
-            {restoreStep === 'complete' && generatedScript && (
+            {restoreStep === 'complete' && (restoreResult?.ok || generatedScript) && (
               <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 space-y-6">
-                <div>
-                  <h4 className="text-base font-semibold text-gray-900 mb-2">✅ 복원 스크립트 생성 완료</h4>
-                  <p className="text-sm text-gray-600">
-                    아래 스크립트를 다운로드하여 로컬 환경에서 실행하세요.
-                  </p>
-                </div>
+                {restoreResult?.ok && (
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900 mb-2">✅ 복원 완료</h4>
+                    <p className="text-sm text-gray-600">
+                      서버에서 직접 복원이 완료되었습니다.
+                    </p>
+                    {(restoreResult.stdout || restoreResult.stderr) && (
+                      <div className="mt-4 bg-gray-900 text-gray-100 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
+                        {restoreResult.stdout}
+                        {restoreResult.stderr && (
+                          <>
+                            {'\n--- stderr ---\n'}
+                            {restoreResult.stderr}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {generatedScript && !restoreResult?.ok && (
+                  <>
+                    <div>
+                      <h4 className="text-base font-semibold text-gray-900 mb-2">✅ 복원 스크립트 생성 완료</h4>
+                      <p className="text-sm text-gray-600">
+                        아래 스크립트를 다운로드하여 로컬 환경에서 실행하세요.
+                      </p>
+                    </div>
 
                 <div className="space-y-3">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -579,6 +678,8 @@ export default function AdminBackupPage() {
                     <li>복원이 완료되면 DB에서 데이터를 확인합니다.</li>
                   </ol>
                 </div>
+                  </>
+                )}
 
                 <div className="flex gap-3 justify-end">
                   <button
@@ -587,6 +688,8 @@ export default function AdminBackupPage() {
                       setSelectedArtifact(null);
                       setSelectedTables([]);
                       setGeneratedScript(null);
+                      setRestoreResult(null);
+                      setConfirmText('');
                       setSuccess('');
                     }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
