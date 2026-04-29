@@ -147,29 +147,20 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
         .sort((a, b) => b.path.length - a.path.length)[0]?.id ?? '')
     : '');
 
-  // 활성 탭이 속한 그룹은 자동 펼침
-  const initialOpen: Record<string, boolean> = {};
-  tabGroups.forEach(g => {
-    initialOpen[g.id] = g.items.some(it => it.id === computedActiveTab);
-  });
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(initialOpen);
+  // 아코디언: 항상 하나의 그룹만 펼침
+  const activeGroupId = tabGroups.find(g => g.items.some(it => it.id === computedActiveTab))?.id ?? null;
+  const [openGroupId, setOpenGroupId] = useState<string | null>(activeGroupId);
 
-  // 활성 탭 변경 시 해당 그룹을 자동으로 펼침
+  // 활성 탭 변경 시 해당 그룹만 자동 펼침
   useEffect(() => {
-    setOpenGroups(prev => {
-      const next = { ...prev };
-      let changed = false;
-      tabGroups.forEach(g => {
-        if (g.items.some(it => it.id === computedActiveTab) && !next[g.id]) {
-          next[g.id] = true;
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [computedActiveTab]);
+    if (activeGroupId) {
+      setOpenGroupId(activeGroupId);
+    }
+  }, [activeGroupId]);
 
-  const toggleGroup = (id: string) => setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleGroup = (id: string) => {
+    setOpenGroupId(prev => (prev === id ? null : id));
+  };
 
   const renderTabLink = (tab: TabItem, indent: boolean = false) => (
     <Link
@@ -240,7 +231,7 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
                   {renderTabLink(dashboardTab)}
                   {renderTabLink(exportTab)}
                   {tabGroups.map((group) => {
-                    const isOpen = !!openGroups[group.id];
+                    const isOpen = openGroupId === group.id;
                     const hasActive = group.items.some(it => it.id === computedActiveTab);
                     return (
                       <div key={group.id} className="pt-1">
