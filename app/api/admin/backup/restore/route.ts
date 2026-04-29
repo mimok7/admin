@@ -150,9 +150,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const extractedPath = path.join(tempDir, gzEntry.entryName);
+    const baseName = path.basename(gzEntry.entryName);
+    const extractedPath = path.join(tempDir, baseName);
     zip.extractEntryTo(gzEntry, tempDir, false, true);
     cleanupFiles.push(extractedPath);
+
+    if (!existsSync(extractedPath)) {
+      return NextResponse.json(
+        { error: `추출된 파일을 찾을 수 없습니다: ${extractedPath}`, entries: entries.map(e => e.entryName) },
+        { status: 500 }
+      );
+    }
 
     // 3. .gz 인 경우 압축 해제
     let dumpFile = extractedPath;
@@ -205,7 +213,15 @@ export async function POST(req: NextRequest) {
       stderr: stderr.slice(0, 2000),
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || '서버 오류' }, { status: 500 });
+    console.error('[backup/restore] 서버 오류:', e);
+    return NextResponse.json(
+      {
+        error: e?.message || '서버 오류',
+        stack: e?.stack?.slice(0, 2000),
+        code: e?.code,
+      },
+      { status: 500 }
+    );
   } finally {
     // 임시 파일 정리
     for (const f of cleanupFiles) {

@@ -67,7 +67,7 @@ export default function AdminBackupPage() {
   const [generatedScript, setGeneratedScript] = useState<GeneratedScript | null>(null);
   const [confirmText, setConfirmText] = useState<string>('');
   const [restoring, setRestoring] = useState(false);
-  const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message?: string; stdout?: string; stderr?: string } | null>(null);
+  const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message?: string; stdout?: string; stderr?: string; error?: string; stack?: string; code?: string } | null>(null);
 
   const today = useMemo(() => {
     return new Date().toLocaleString('ko-KR', {
@@ -605,9 +605,20 @@ export default function AdminBackupPage() {
                       />
                     </div>
 
-                    {restoreResult && !restoreResult.ok && (restoreResult.stderr || restoreResult.message) && (
-                      <div className="bg-gray-900 text-gray-100 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
-                        {restoreResult.stderr || restoreResult.message}
+                    {restoreResult && !restoreResult.ok && (
+                      <div className="bg-gray-900 text-gray-100 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap max-h-80 overflow-y-auto space-y-2">
+                        {restoreResult.error && (
+                          <div><span className="text-red-400">[error]</span> {restoreResult.error}{restoreResult.code ? ` (${restoreResult.code})` : ''}</div>
+                        )}
+                        {restoreResult.stderr && (
+                          <div><span className="text-yellow-400">[stderr]</span>{'\n'}{restoreResult.stderr}</div>
+                        )}
+                        {restoreResult.stack && (
+                          <div className="text-gray-400"><span className="text-gray-500">[stack]</span>{'\n'}{restoreResult.stack}</div>
+                        )}
+                        {!restoreResult.error && !restoreResult.stderr && !restoreResult.stack && restoreResult.message && (
+                          <div>{restoreResult.message}</div>
+                        )}
                       </div>
                     )}
                   </div>
