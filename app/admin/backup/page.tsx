@@ -314,6 +314,20 @@ export default function AdminBackupPage() {
                   <p className="text-sm text-gray-600 mt-1">
                     하루 1회 자동 백업 기준으로 점검/운영할 수 있는 관리 페이지입니다.
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <a
+                      href="/admin/backup/guide"
+                      className="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                    >
+                      상세 복원 지침 보기
+                    </a>
+                    <a
+                      href="/admin/backup/guide#troubleshooting"
+                      className="inline-flex items-center px-3 py-1.5 text-xs rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    >
+                      오류 해결 가이드
+                    </a>
+                  </div>
                 </div>
                 <div className="text-xs text-gray-500">기준 시각: {today}</div>
               </div>
@@ -400,6 +414,19 @@ export default function AdminBackupPage() {
         {/* 복원 탭 */}
         {tab === 'restore' && (
           <div className="space-y-6">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+              <p className="text-sm text-indigo-900 font-medium">복원 전 상세 지침 확인 권장</p>
+              <p className="text-xs text-indigo-800 mt-1">
+                환경 변수 설정, 로컬 직접 복원, 수동 스크립트 복원, 장애 대응 절차를 단계별로 정리했습니다.
+              </p>
+              <a
+                href="/admin/backup/guide"
+                className="inline-flex mt-3 px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+              >
+                백업/복원 상세 지침 열기
+              </a>
+            </div>
+
             {/* 에러/성공 메시지 */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
