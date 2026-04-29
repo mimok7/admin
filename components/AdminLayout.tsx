@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import supabase from '@/lib/supabase';
 import Link from 'next/link';
 import SecurityProvider from './SecurityProvider';
+import type { User } from '@supabase/supabase-js';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -20,11 +21,11 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
   // usePathname is a hook; call it early so hook order doesn't change between renders
   const pathname = usePathname();
 
-  const getUserWithTimeout = async (timeoutMs = 8000) => {
-    const timeoutPromise = new Promise<never>((_, reject) => {
+  const getUserWithTimeout = async (timeoutMs = 12000) => {
+    const timeoutPromise = new Promise<{ data: { user: User | null }; error: Error }>((resolve) => {
       const timer = setTimeout(() => {
         clearTimeout(timer);
-        reject(new Error('auth_get_user_timeout'));
+        resolve({ data: { user: null }, error: new Error('auth_get_user_timeout') });
       }, timeoutMs);
     });
 
@@ -35,22 +36,35 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
     let cancelled = false;
     const checkAdmin = async () => {
       try {
-        const { data, error } = await getUserWithTimeout();
+        // 1) 브라우저 세션(localStorage) 우선 확인: 네트워크 지연 시에도 빠르게 판별 가능
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        // 2) 세션이 없을 때만 getUser 호출 (네트워크 기반 검증)
+        const fallback = !session ? await getUserWithTimeout() : null;
+        const user = session?.user ?? fallback?.data?.user ?? null;
+        const error = fallback?.error ?? null;
+
         if (cancelled) return;
-        if (error || !data.user) {
+
+        if (!user) {
+          if (error?.message === 'auth_get_user_timeout') {
+            console.warn('관리자 권한 확인 지연: auth_get_user_timeout');
+          }
           alert('로그인이 필요합니다.');
           router.push('/login');
           setIsLoading(false);
           return;
         }
 
-        setUser(data.user);
+        setUser(user);
 
         // 관리자 권한 확인
         const { data: userData, error: roleError } = await supabase
           .from('users')
           .select('role')
-          .eq('id', data.user.id)
+          .eq('id', user.id)
           .single();
 
         if (cancelled) return;

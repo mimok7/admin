@@ -5,6 +5,34 @@ import { checkAdmin, fetchAll, SERVICE_TABLES } from '@/lib/exportAuth';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
+async function fetchByAnyColumn(table: string, candidateColumns: string[], values: any[]) {
+  if (!serviceSupabase || values.length === 0) return [];
+  const uniqueValues = Array.from(new Set(values.filter(Boolean)));
+  if (uniqueValues.length === 0) return [];
+
+  const lastErrors: string[] = [];
+  for (const col of candidateColumns) {
+    try {
+      const rows: any[] = [];
+      const chunkSize = 200;
+      for (let i = 0; i < uniqueValues.length; i += chunkSize) {
+        const chunk = uniqueValues.slice(i, i + chunkSize);
+        const { data, error } = await serviceSupabase
+          .from(table)
+          .select('*')
+          .in(col, chunk);
+        if (error) throw error;
+        if (data?.length) rows.push(...data);
+      }
+      return rows;
+    } catch (e: any) {
+      lastErrors.push(`${table}.${col}: ${e?.message ?? String(e)}`);
+    }
+  }
+
+  throw new Error(lastErrors.join(' | '));
+}
+
 // 사용자별 예약 + 모든 서비스 상세 행을 한 번에 반환
 export async function GET(req: NextRequest) {
   const auth = await checkAdmin(req);
@@ -16,23 +44,24 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1) 예약 조회 (특정 유저 또는 전체)
-    const reservations = await fetchAll('reservation', (q) => {
-      let qq = q.order('re_created_at', { ascending: false });
-      if (userId) qq = qq.eq('re_user_id', userId);
-      return qq;
-    });
+    let reservations: any[] = [];
+    try {
+      reservations = await fetchAll('reservation', (q) => {
+        let qq = q.order('re_created_at', { ascending: false });
+        if (userId) qq = qq.eq('re_user_id', userId);
+        return qq;
+      });
+    } catch {
+      // 운영 DB 컬럼 차이가 있는 경우 정렬 컬럼 없이 재시도
+      reservations = await fetchAll('reservation', (q) => (userId ? q.eq('re_user_id', userId) : q));
+    }
 
     // 2) 견적 조회 (예약과 연결)
     const quoteIds = Array.from(new Set(reservations.map(r => r.re_quote_id).filter(Boolean)));
     let quotes: any[] = [];
     if (quoteIds.length > 0) {
-      // chunk로 in 쿼리 (Postgres in 절 한도 회피)
-      const chunkSize = 200;
-      for (let i = 0; i < quoteIds.length; i += chunkSize) {
-        const chunk = quoteIds.slice(i, i + chunkSize);
-        const part = await fetchAll('quote', (q) => q.in('quote_id', chunk));
-        quotes.push(...part);
-      }
+      // 스키마별로 quote PK 컬럼명이 다른 경우를 대비해 quote_id -> id 순으로 폴백
+      quotes = await fetchByAnyColumn('quote', ['quote_id', 'id'], quoteIds);
     }
 
     // 3) 사용자 조회
@@ -56,15 +85,11 @@ export async function GET(req: NextRequest) {
     if (reIds.length > 0) {
       for (const svc of SERVICE_TABLES) {
         services[svc.key] = [];
-        const chunkSize = 200;
-        for (let i = 0; i < reIds.length; i += chunkSize) {
-          const chunk = reIds.slice(i, i + chunkSize);
-          try {
-            const part = await fetchAll(svc.table, (q) => q.in('reservation_id', chunk));
-            services[svc.key].push(...part);
-          } catch (e) {
-            // 해당 테이블에 reservation_id 컬럼이 없거나 접근 실패 → 스킵
-          }
+        try {
+          services[svc.key] = await fetchByAnyColumn(svc.table, ['reservation_id', 're_id'], reIds);
+        } catch {
+          // 해당 테이블 스키마가 달라도 전체 export가 중단되지 않도록 스킵
+          services[svc.key] = [];
         }
       }
     }

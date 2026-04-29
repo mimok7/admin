@@ -73,7 +73,15 @@ export default function HomePage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full text-center bg-white rounded-lg shadow-sm p-6">
         <div className="flex justify-center mb-4">
-          <Image src="/logo-full.png" alt="스테이하롱 로고" width={260} height={70} unoptimized />
+          <Image
+            src="/logo-full.png"
+            alt="스테이하롱 로고"
+            width={260}
+            height={70}
+            unoptimized
+            loading="eager"
+            style={{ width: 'auto', height: 'auto' }}
+          />
         </div>
         <h1 className="text-lg font-semibold text-gray-800 mb-2">스테이하롱 관리자 시스템</h1>
         <p className="text-sm text-gray-600 mb-4">관리자 인증 후 이용 가능합니다.</p>

@@ -61,7 +61,15 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="max-w-sm w-full bg-white rounded-lg shadow-sm p-6">
         <div className="flex justify-center mb-4">
-          <Image src="/logo-full.png" alt="스테이하롱 로고" width={280} height={72} unoptimized />
+          <Image
+            src="/logo-full.png"
+            alt="스테이하롱 로고"
+            width={280}
+            height={72}
+            unoptimized
+            loading="eager"
+            style={{ width: 'auto', height: 'auto' }}
+          />
         </div>
         <h2 className="text-xl font-bold mb-5 text-center">관리자 로그인</h2>
 
