@@ -82,7 +82,7 @@ async function checkAdmin(req: NextRequest): Promise<{ ok: boolean; error?: stri
 }
 
 export async function POST(req: NextRequest) {
-  const tempDir = path.join(tmpdir(), `sht-restore-${Date.now()}`);
+  const tempDir = path.join(/*turbopackIgnore: true*/ tmpdir(), `sht-restore-${Date.now()}`);
   let cleanupFiles: string[] = [];
 
   try {
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
     }
 
     const zipBuffer = Buffer.from(await downloadRes.arrayBuffer());
-    const zipPath = path.join(tempDir, 'backup.zip');
+    const zipPath = path.join(/*turbopackIgnore: true*/ tempDir, 'backup.zip');
     await writeFile(zipPath, zipBuffer);
     cleanupFiles.push(zipPath);
 
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
     }
 
     const baseName = path.basename(gzEntry.entryName);
-    const extractedPath = path.join(tempDir, baseName);
+    const extractedPath = path.join(/*turbopackIgnore: true*/ tempDir, baseName);
     zip.extractEntryTo(gzEntry, tempDir, false, true);
     cleanupFiles.push(extractedPath);
 
