@@ -1,0 +1,50 @@
+name: Nightly Excel Export
+
+on:
+  schedule:
+    - cron: '10 18 * * *' # UTC 18:10 = KST 03:10
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate nightly excel files
+        env:
+          EXPORT_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          EXPORT_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/nightly-export.mjs
+
+      - name: Upload export artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-excel-export-${{ github.run_id }}
+          path: export_artifacts/*
+          retention-days: 30
+
+      - name: Workflow summary
+        if: always()
+        run: |
+          echo "## Nightly Export Summary" >> $GITHUB_STEP_SUMMARY
+          if [ -f export_artifacts/summary.json ]; then
+            cat export_artifacts/summary.json >> $GITHUB_STEP_SUMMARY
+          else
+            echo "summary.json not found" >> $GITHUB_STEP_SUMMARY
+          fi

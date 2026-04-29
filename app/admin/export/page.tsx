@@ -223,6 +223,11 @@ export default function ExportPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
           예약·서비스·테이블 데이터를 Excel(.xlsx) 파일로 내려받습니다. 큰 데이터(수만 건+)는 다운로드까지 시간이 걸릴 수 있습니다.
         </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+          PC 전원이 꺼져 있어도 새벽 자동 생성이 필요하면 GitHub Actions의
+          <b> Nightly Excel Export</b> 워크플로우를 사용하세요.
+          생성 파일은 Actions Artifacts에 저장되며, 수동 실행은 Actions 화면에서 가능합니다.
+        </div>
 
         {/* 모드 탭 */}
         <div className="flex gap-2 border-b border-gray-200">
