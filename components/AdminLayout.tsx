@@ -76,17 +76,6 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
     return () => { cancelled = true; };
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-4">⚙️</div>
-          <p>관리자 권한 확인 중...</p>
-        </div>
-      </div>
-    );
-  }
-
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
@@ -193,6 +182,17 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
       <span className="ml-1">{tab.label}</span>
     </Link>
   );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-4">⚙️</div>
+          <p>관리자 권한 확인 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SecurityProvider>
