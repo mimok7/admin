@@ -97,37 +97,102 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
     }
   };
 
-  const adminTabs = [
-    { id: 'dashboard', label: '대시보드', path: '/admin', icon: '📊' },
-    { id: 'users', label: '사용자 관리', path: '/admin/users', icon: '👥' },
-    { id: 'user-sync', label: '사용자 동기화', path: '/admin/user-sync', icon: '👤' },
-    { id: 'auth-sync', label: '인증 동기화', path: '/admin/auth-sync', icon: '🔐' },
-    { id: 'data-management', label: '데이터 연결', path: '/admin/data-management', icon: '🔗' },
-    { id: 'reservation-total-system', label: '총금액 계산', path: '/admin/reservation-total-system', icon: '💰' },
-    { id: 'sync', label: '데이터 동기화', path: '/admin/sync', icon: '🔄' },
-    { id: 'sync-shcc', label: 'sh_cc 동기화', path: '/admin/sync-shcc-to-reservation', icon: '🚗' },
-    { id: 'sql-runner', label: 'SQL 실행', path: '/admin/sql-runner', icon: '⚡' },
-    { id: 'database-schema', label: 'DB 스키마', path: '/admin/database-schema', icon: '🗃️' },
-    { id: 'database', label: 'DB 관리', path: '/admin/database', icon: '🔧' },
-    { id: 'backup', label: '백업 관리', path: '/admin/backup', icon: '🗄️' },
-    { id: 'packages', label: '패키지 관리', path: '/admin/packages', icon: '📦' },
-    // 추가 섹션들 (페이지에서 activeTab으로 사용 중)
+  type TabItem = { id: string; label: string; path: string; icon: string };
+  type TabGroup = { id: string; label: string; icon: string; items: TabItem[] };
 
-    { id: 'reports', label: '리포트', path: '/admin/reports', icon: '📄' },
-    { id: 'settings', label: '설정', path: '/admin/settings', icon: '⚙️' },
-    { id: 'base-prices', label: '가격 동기화', path: '/admin/base-prices', icon: '🏷️' },
-    { id: 'fix-quantities', label: '수량 수정', path: '/admin/fix-quantities', icon: '🛠️' },
-    { id: 'sht-seat', label: '스하좌석', path: '/admin/sht-seat', icon: '💺' },
+  const dashboardTab: TabItem = { id: 'dashboard', label: '대시보드', path: '/admin', icon: '📊' };
+  const exportTab: TabItem = { id: 'export', label: '엑셀 내보내기', path: '/admin/export', icon: '📤' };
+  const settingsTab: TabItem = { id: 'settings', label: '설정', path: '/admin/settings', icon: '⚙️' };
+
+  const tabGroups: TabGroup[] = [
+    {
+      id: 'group-users', label: '사용자', icon: '👥', items: [
+        { id: 'users', label: '사용자 관리', path: '/admin/users', icon: '👥' },
+        { id: 'user-sync', label: '사용자 동기화', path: '/admin/user-sync', icon: '👤' },
+        { id: 'auth-sync', label: '인증 동기화', path: '/admin/auth-sync', icon: '🔐' },
+      ]
+    },
+    {
+      id: 'group-data', label: '데이터/동기화', icon: '🔗', items: [
+        { id: 'data-management', label: '데이터 연결', path: '/admin/data-management', icon: '🔗' },
+        { id: 'sync', label: '데이터 동기화', path: '/admin/sync', icon: '🔄' },
+        { id: 'sync-shcc', label: 'sh_cc 동기화', path: '/admin/sync-shcc-to-reservation', icon: '🚗' },
+        { id: 'base-prices', label: '가격 동기화', path: '/admin/base-prices', icon: '🏷️' },
+        { id: 'fix-quantities', label: '수량 수정', path: '/admin/fix-quantities', icon: '🛠️' },
+      ]
+    },
+    {
+      id: 'group-reservation', label: '예약/운영', icon: '📋', items: [
+        { id: 'reservation-total-system', label: '총금액 계산', path: '/admin/reservation-total-system', icon: '💰' },
+        { id: 'sht-seat', label: '스하좌석', path: '/admin/sht-seat', icon: '💺' },
+      ]
+    },
+    {
+      id: 'group-content', label: '콘텐츠', icon: '📦', items: [
+        { id: 'packages', label: '패키지 관리', path: '/admin/packages', icon: '📦' },
+        { id: 'reports', label: '리포트', path: '/admin/reports', icon: '📄' },
+      ]
+    },
+    {
+      id: 'group-db', label: 'DB 도구', icon: '🗃️', items: [
+        { id: 'sql-runner', label: 'SQL 실행', path: '/admin/sql-runner', icon: '⚡' },
+        { id: 'database-schema', label: 'DB 스키마', path: '/admin/database-schema', icon: '🗃️' },
+        { id: 'database', label: 'DB 관리', path: '/admin/database', icon: '🔧' },
+      ]
+    },
+    {
+      id: 'group-backup', label: '백업 관리', icon: '🗄️', items: [
+        { id: 'backup', label: '백업/복원', path: '/admin/backup', icon: '🗄️' },
+        { id: 'backup-verify', label: '복원 검증', path: '/admin/backup/verify', icon: '🔬' },
+        { id: 'backup-guide', label: '백업 지침', path: '/admin/backup/guide', icon: '📘' },
+      ]
+    },
   ];
 
-  // 사이드바 최하단에 배치할 탭 분리 (예: settings)
-  const topTabs = adminTabs.filter((t) => t.id !== 'settings');
-  const settingsTab = adminTabs.find((t) => t.id === 'settings');
+  const allTabs: TabItem[] = [dashboardTab, exportTab, settingsTab, ...tabGroups.flatMap(g => g.items)];
 
-  // 현재 경로로부터 활성 탭을 자동 계산
+  // 현재 경로로부터 활성 탭을 자동 계산 (가장 긴 경로 매칭 우선)
   const computedActiveTab = activeTab || (pathname
-    ? (adminTabs.find(tab => pathname.startsWith(tab.path))?.id ?? '')
+    ? (allTabs
+        .filter(tab => pathname === tab.path || pathname.startsWith(tab.path + '/'))
+        .sort((a, b) => b.path.length - a.path.length)[0]?.id ?? '')
     : '');
+
+  // 활성 탭이 속한 그룹은 자동 펼침
+  const initialOpen: Record<string, boolean> = {};
+  tabGroups.forEach(g => {
+    initialOpen[g.id] = g.items.some(it => it.id === computedActiveTab);
+  });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(initialOpen);
+
+  // 활성 탭 변경 시 해당 그룹을 자동으로 펼침
+  useEffect(() => {
+    setOpenGroups(prev => {
+      const next = { ...prev };
+      let changed = false;
+      tabGroups.forEach(g => {
+        if (g.items.some(it => it.id === computedActiveTab) && !next[g.id]) {
+          next[g.id] = true;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [computedActiveTab]);
+
+  const toggleGroup = (id: string) => setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const renderTabLink = (tab: TabItem, indent: boolean = false) => (
+    <Link
+      key={tab.id}
+      href={tab.path}
+      className={`flex items-center justify-start gap-3 ${indent ? 'pl-7 pr-3' : 'px-3'} py-2 text-sm rounded-md transition-colors ${computedActiveTab === tab.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}
+      aria-current={computedActiveTab === tab.id ? 'page' : undefined}
+    >
+      <span className="text-lg inline-block w-6 text-center">{tab.icon}</span>
+      <span className="ml-1">{tab.label}</span>
+    </Link>
+  );
 
   return (
     <SecurityProvider>
@@ -171,30 +236,39 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
             {/* Sidebar */}
             <aside className="w-48 mr-4 mb-0 flex-none order-1">
               <div className="bg-white rounded-lg shadow-sm p-4 md:sticky md:top-24 flex flex-col justify-between h-full">
-                <nav className="space-y-2">
-                  {topTabs.map((tab) => (
-                    <Link
-                      key={tab.id}
-                      href={tab.path}
-                      className={`flex items-center justify-start gap-3 px-3 py-2 text-sm rounded-md transition-colors ${computedActiveTab === tab.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}
-                      aria-current={computedActiveTab === tab.id ? 'page' : undefined}
-                    >
-                      <span className="text-lg inline-block w-6 text-center">{tab.icon}</span>
-                      <span className="ml-2">{tab.label}</span>
-                    </Link>
-                  ))}
+                <nav className="space-y-1">
+                  {renderTabLink(dashboardTab)}
+                  {renderTabLink(exportTab)}
+                  {tabGroups.map((group) => {
+                    const isOpen = !!openGroups[group.id];
+                    const hasActive = group.items.some(it => it.id === computedActiveTab);
+                    return (
+                      <div key={group.id} className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(group.id)}
+                          className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors ${hasActive ? 'bg-blue-50/60 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                          aria-expanded={isOpen}
+                        >
+                          <span className="flex items-center gap-3">
+                            <span className="text-lg inline-block w-6 text-center">{group.icon}</span>
+                            <span className="ml-1 font-semibold">{group.label}</span>
+                          </span>
+                          <span className={`text-xs transition-transform ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+                        </button>
+                        {isOpen && (
+                          <div className="mt-1 space-y-1">
+                            {group.items.map(item => renderTabLink(item, true))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </nav>
 
                 {settingsTab && (
                   <div className="mt-4">
-                    <Link
-                      href={settingsTab.path}
-                      className={`flex items-center justify-start gap-3 px-3 py-2 text-sm rounded-md transition-colors ${computedActiveTab === settingsTab.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}
-                      aria-current={computedActiveTab === settingsTab.id ? 'page' : undefined}
-                    >
-                      <span className="text-lg inline-block w-6 text-center">{settingsTab.icon}</span>
-                      <span className="ml-2">{settingsTab.label}</span>
-                    </Link>
+                    {renderTabLink(settingsTab)}
                   </div>
                 )}
               </div>
