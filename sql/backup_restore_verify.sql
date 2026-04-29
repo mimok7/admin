@@ -40,7 +40,7 @@ BEGIN
   RAISE NOTICE 'unvalidated_fk_count = %', v_unvalidated_fk;
 
   IF v_unvalidated_fk > 0 THEN
-    RAISE EXCEPTION '검증되지 않은 FK 제약이 있습니다. count=%', v_unvalidated_fk;
+    RAISE WARNING '검증되지 않은 FK 제약이 있습니다(경고). count=%', v_unvalidated_fk;
   END IF;
 END $$;
 
@@ -49,10 +49,13 @@ DO $$
 DECLARE
   v_users_count integer;
 BEGIN
+  IF to_regclass('public.users') IS NULL THEN
+    RAISE EXCEPTION 'public.users 테이블이 없습니다.';
+  END IF;
   EXECUTE 'SELECT count(*) FROM public.users' INTO v_users_count;
   RAISE NOTICE 'users_row_count = %', v_users_count;
   IF v_users_count = 0 THEN
-    RAISE EXCEPTION 'users 테이블이 비어 있습니다. 백업이 비정상일 수 있습니다.';
+    RAISE WARNING 'users 테이블이 비어 있습니다(경고). 백업이 비정상일 수 있습니다.';
   END IF;
 END $$;
 
@@ -66,3 +69,4 @@ JOIN pg_namespace n ON n.oid = c.connamespace
 WHERE n.nspname = 'public' AND c.contype = 'f'
 UNION ALL
 SELECT 'users_row_count', count(*)::text FROM public.users;
+

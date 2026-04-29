@@ -5,7 +5,6 @@ import { useRouter, usePathname } from 'next/navigation';
 import supabase from '@/lib/supabase';
 import Link from 'next/link';
 import SecurityProvider from './SecurityProvider';
-import type { User } from '@supabase/supabase-js';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -21,77 +20,137 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
   // usePathname is a hook; call it early so hook order doesn't change between renders
   const pathname = usePathname();
 
-  const getUserWithTimeout = async (timeoutMs = 12000) => {
-    const timeoutPromise = new Promise<{ data: { user: User | null }; error: Error }>((resolve) => {
-      const timer = setTimeout(() => {
-        clearTimeout(timer);
-        resolve({ data: { user: null }, error: new Error('auth_get_user_timeout') });
-      }, timeoutMs);
-    });
+  // 권한 캐시 키 (sessionStorage 기준 - 탭 닫으면 자동 삭제)
+  const ADMIN_CACHE_KEY = 'sht_admin_auth_cache_v1';
+  const ADMIN_CACHE_TTL_MS = 5 * 60 * 1000; // 5분
 
-    return Promise.race([supabase.auth.getUser(), timeoutPromise]);
+  type AdminCache = { userId: string; email?: string; role: string; ts: number };
+
+  const readAdminCache = (): AdminCache | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = sessionStorage.getItem(ADMIN_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as AdminCache;
+      if (!parsed?.userId || !parsed?.role) return null;
+      if (Date.now() - (parsed.ts || 0) > ADMIN_CACHE_TTL_MS) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeAdminCache = (data: Omit<AdminCache, 'ts'>) => {
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify({ ...data, ts: Date.now() }));
+    } catch {
+      /* ignore quota errors */
+    }
+  };
+
+  const clearAdminCache = () => {
+    if (typeof window === 'undefined') return;
+    try { sessionStorage.removeItem(ADMIN_CACHE_KEY); } catch { /* ignore */ }
   };
 
   useEffect(() => {
     let cancelled = false;
-    const checkAdmin = async () => {
+
+    const verifyInBackground = async (cachedUserId: string) => {
       try {
-        // 1) 브라우저 세션(localStorage) 우선 확인: 네트워크 지연 시에도 빠르게 판별 가능
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        // 2) 세션이 없을 때만 getUser 호출 (네트워크 기반 검증)
-        const fallback = !session ? await getUserWithTimeout() : null;
-        const user = session?.user ?? fallback?.data?.user ?? null;
-        const error = fallback?.error ?? null;
-
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('role, email')
+          .eq('id', cachedUserId)
+          .single();
         if (cancelled) return;
+        if (error || userData?.role !== 'admin') {
+          clearAdminCache();
+          alert('관리자 권한이 만료되었습니다. 다시 로그인해주세요.');
+          router.push('/login');
+          return;
+        }
+        // 캐시 갱신
+        writeAdminCache({ userId: cachedUserId, email: userData.email, role: userData.role });
+      } catch {
+        // 네트워크 오류 등은 무시 (캐시된 권한으로 계속 동작)
+      }
+    };
 
-        if (!user) {
-          if (error?.message === 'auth_get_user_timeout') {
-            console.warn('관리자 권한 확인 지연: auth_get_user_timeout');
-          }
+    const fullCheck = async () => {
+      try {
+        // 세션 우선 확인 (localStorage 기반, 거의 즉시 반환)
+        const { data: { session } } = await supabase.auth.getSession();
+        const sessionUser = session?.user ?? null;
+
+        if (!sessionUser) {
+          if (cancelled) return;
+          clearAdminCache();
           alert('로그인이 필요합니다.');
           router.push('/login');
           setIsLoading(false);
           return;
         }
 
-        setUser(user);
+        if (cancelled) return;
+        setUser(sessionUser);
 
-        // 관리자 권한 확인
-        const { data: userData, error: roleError } = await supabase
+        // 관리자 역할 조회 (5초 타임아웃)
+        const rolePromise = supabase
           .from('users')
-          .select('role')
-          .eq('id', user.id)
+          .select('role, email')
+          .eq('id', sessionUser.id)
           .single();
+        const timeoutPromise = new Promise<{ data: any; error: any }>((resolve) => {
+          setTimeout(() => resolve({ data: null, error: { message: 'role_check_timeout' } }), 5000);
+        });
+        const { data: userData, error: roleError } = await Promise.race([rolePromise, timeoutPromise]);
 
         if (cancelled) return;
 
         if (roleError || userData?.role !== 'admin') {
+          clearAdminCache();
+          if (roleError?.message === 'role_check_timeout') {
+            console.warn('관리자 권한 조회 타임아웃');
+          }
           alert('관리자 권한이 필요합니다.');
-          router.push('/');
+          router.push(roleError?.message === 'role_check_timeout' ? '/login' : '/');
           setIsLoading(false);
           return;
         }
 
         setUserRole(userData.role);
+        writeAdminCache({ userId: sessionUser.id, email: userData.email, role: userData.role });
       } catch (err) {
         console.error('관리자 권한 확인 오류:', err);
         if (cancelled) return;
+        clearAdminCache();
         router.push('/login');
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     };
 
-    checkAdmin();
+    // 1) 캐시 즉시 적용 → 깜빡임 제거
+    const cached = readAdminCache();
+    if (cached) {
+      setUser({ id: cached.userId, email: cached.email });
+      setUserRole(cached.role);
+      setIsLoading(false);
+      // 백그라운드에서 검증
+      verifyInBackground(cached.userId);
+    } else {
+      // 캐시 없으면 정규 검증
+      fullCheck();
+    }
+
     return () => { cancelled = true; };
   }, []);
 
   const handleLogout = async () => {
     try {
+      clearAdminCache();
       await supabase.auth.signOut();
       router.push('/login');
     } catch (error) {
@@ -104,7 +163,6 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
   type TabGroup = { id: string; label: string; icon: string; items: TabItem[] };
 
   const dashboardTab: TabItem = { id: 'dashboard', label: '대시보드', path: '/admin', icon: '📊' };
-  const exportTab: TabItem = { id: 'export', label: '엑셀 내보내기', path: '/admin/export', icon: '📤' };
   const settingsTab: TabItem = { id: 'settings', label: '설정', path: '/admin/settings', icon: '⚙️' };
 
   const tabGroups: TabGroup[] = [
@@ -147,12 +205,14 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
       id: 'group-backup', label: '백업 관리', icon: '🗄️', items: [
         { id: 'backup', label: '백업/복원', path: '/admin/backup', icon: '🗄️' },
         { id: 'backup-verify', label: '복원 검증', path: '/admin/backup/verify', icon: '🔬' },
+        { id: 'backup-migrate', label: '계정 이전', path: '/admin/backup/migrate', icon: '📦' },
         { id: 'backup-guide', label: '백업 지침', path: '/admin/backup/guide', icon: '📘' },
+        { id: 'export', label: '엑셀 내보내기', path: '/admin/export', icon: '📤' },
       ]
     },
   ];
 
-  const allTabs: TabItem[] = [dashboardTab, exportTab, settingsTab, ...tabGroups.flatMap(g => g.items)];
+  const allTabs: TabItem[] = [dashboardTab, settingsTab, ...tabGroups.flatMap(g => g.items)];
 
   // 현재 경로로부터 활성 탭을 자동 계산 (가장 긴 경로 매칭 우선)
   const computedActiveTab = activeTab || (pathname
@@ -243,7 +303,6 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
               <div className="bg-white rounded-lg shadow-sm p-4 md:sticky md:top-24 flex flex-col justify-between h-full">
                 <nav className="space-y-1">
                   {renderTabLink(dashboardTab)}
-                  {renderTabLink(exportTab)}
                   {tabGroups.map((group) => {
                     const isOpen = openGroupId === group.id;
                     const hasActive = group.items.some(it => it.id === computedActiveTab);

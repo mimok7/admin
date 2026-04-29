@@ -22,6 +22,18 @@ type VerifyData = {
   workflow: string;
   latest: Run | null;
   history: Run[];
+  report?: {
+    generatedAt: string;
+    sourceCompared: boolean;
+    scores: {
+      structure: number;
+      rowCount: number;
+      sample: number;
+      total: number;
+    };
+    rowComparisons: Array<{ table: string; source: string; restored: string; matched: boolean }>;
+    checksumComparisons: Array<{ table: string; source: string; restored: string; matched: boolean }>;
+  } | null;
 };
 
 export default function BackupVerifyPage() {
@@ -134,6 +146,14 @@ export default function BackupVerifyPage() {
 
   const latest = data?.latest;
   const latestAge = ageHours(latest?.runStartedAt || latest?.createdAt);
+  const report = data?.report;
+
+  const scoreTone = (score?: number) => {
+    if (score == null) return 'bg-gray-50 text-gray-700 border-gray-200';
+    if (score >= 95) return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+    if (score >= 80) return 'bg-amber-50 text-amber-800 border-amber-200';
+    return 'bg-rose-50 text-rose-800 border-rose-200';
+  };
 
   return (
     <AdminLayout title="백업 복원 검증" activeTab="backup">
@@ -195,6 +215,126 @@ export default function BackupVerifyPage() {
               {info}
             </div>
           )}
+
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-sm font-semibold text-emerald-900">운영 테이블 영향 여부</p>
+              <ul className="mt-1 list-disc pl-4 text-xs text-emerald-800 space-y-0.5">
+                <li>현재 사용 중인 운영 Supabase 테이블에는 직접 접근/수정하지 않습니다.</li>
+                <li>검증은 GitHub Actions 러너 내부의 별도 PostgreSQL 인스턴스에서만 수행됩니다.</li>
+                <li>검증 종료 후 해당 러너/DB는 폐기되므로 운영 데이터에 잔여 영향이 남지 않습니다.</li>
+              </ul>
+            </div>
+            <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3">
+              <p className="text-sm font-semibold text-indigo-900">임시 DB/테이블 생성 방식</p>
+              <ul className="mt-1 list-disc pl-4 text-xs text-indigo-800 space-y-0.5">
+                <li>임시 테이블을 따로 생성해 운영 테이블과 1:1 비교하는 방식이 아닙니다.</li>
+                <li>복원 대상 DB 이름은 고정값 <span className="font-mono">restore_verify</span> 입니다.</li>
+                <li>접속 URL: <span className="font-mono">postgresql://postgres:postgres@localhost:5432/restore_verify</span></li>
+                <li>테이블 이름은 백업 dump 그대로 복원되며, 예: <span className="font-mono">public.users</span></li>
+                <li>랜덤 접미사가 붙는 임시 테이블명 생성 로직은 현재 검증 워크플로우에 없습니다.</li>
+              </ul>
+            </div>
+          </div>
+
+          <p className="mt-3 text-xs text-gray-500">
+            근거: .github/workflows/backup-restore-verify.yml 의 "Restore to temporary DB" 단계와
+            sql/backup_restore_verify.sql 검사 스크립트
+          </p>
+        </section>
+
+        <section className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">완전성 점수 (구조/행수/샘플)</h3>
+            <span className="text-xs text-gray-500">
+              {report?.generatedAt ? `산출시각: ${formatDate(report.generatedAt)}` : '점수 데이터 없음'}
+            </span>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className={`rounded-md border p-3 ${scoreTone(report?.scores.total)}`}>
+                <p className="text-xs font-semibold">종합 점수</p>
+                <p className="mt-1 text-2xl font-bold">{report?.scores.total ?? '-'}{report ? '/100' : ''}</p>
+              </div>
+              <div className={`rounded-md border p-3 ${scoreTone(report?.scores.structure)}`}>
+                <p className="text-xs font-semibold">구조 점수</p>
+                <p className="mt-1 text-2xl font-bold">{report?.scores.structure ?? '-'}{report ? '/100' : ''}</p>
+              </div>
+              <div className={`rounded-md border p-3 ${scoreTone(report?.scores.rowCount)}`}>
+                <p className="text-xs font-semibold">행수 점수</p>
+                <p className="mt-1 text-2xl font-bold">{report?.scores.rowCount ?? '-'}{report ? '/100' : ''}</p>
+              </div>
+              <div className={`rounded-md border p-3 ${scoreTone(report?.scores.sample)}`}>
+                <p className="text-xs font-semibold">샘플 점수</p>
+                <p className="mt-1 text-2xl font-bold">{report?.scores.sample ?? '-'}{report ? '/100' : ''}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              기준: 구조 40% + 핵심 테이블 행수 일치 35% + 핵심 테이블 샘플 체크섬 일치 25%
+              {report ? (report.sourceCompared ? ' · 원본 DB 비교 포함' : ' · 원본 DB 미설정으로 복원본 단독 평가') : ''}
+            </p>
+
+            {report && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="rounded-md border border-gray-200 overflow-hidden">
+                  <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-700">핵심 테이블 Row Count 비교</div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-white text-gray-500 uppercase">
+                        <tr>
+                          <th className="px-3 py-2 text-left">테이블</th>
+                          <th className="px-3 py-2 text-left">원본</th>
+                          <th className="px-3 py-2 text-left">복원</th>
+                          <th className="px-3 py-2 text-left">일치</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {report.rowComparisons.map((r) => (
+                          <tr key={`row-${r.table}`}>
+                            <td className="px-3 py-2 font-medium text-gray-900">{r.table}</td>
+                            <td className="px-3 py-2 text-gray-700">{r.source}</td>
+                            <td className="px-3 py-2 text-gray-700">{r.restored}</td>
+                            <td className={`px-3 py-2 font-semibold ${r.matched ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              {r.matched ? 'PASS' : 'FAIL'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-gray-200 overflow-hidden">
+                  <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-700">핵심 테이블 샘플 체크섬 비교</div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-white text-gray-500 uppercase">
+                        <tr>
+                          <th className="px-3 py-2 text-left">테이블</th>
+                          <th className="px-3 py-2 text-left">원본 checksum</th>
+                          <th className="px-3 py-2 text-left">복원 checksum</th>
+                          <th className="px-3 py-2 text-left">일치</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {report.checksumComparisons.map((r) => (
+                          <tr key={`sum-${r.table}`}>
+                            <td className="px-3 py-2 font-medium text-gray-900">{r.table}</td>
+                            <td className="px-3 py-2 text-gray-700 font-mono">{String(r.source).slice(0, 8)}</td>
+                            <td className="px-3 py-2 text-gray-700 font-mono">{String(r.restored).slice(0, 8)}</td>
+                            <td className={`px-3 py-2 font-semibold ${r.matched ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              {r.matched ? 'PASS' : 'FAIL'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">

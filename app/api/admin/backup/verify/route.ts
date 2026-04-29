@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import serviceSupabase from '@/lib/serviceSupabase';
+import AdmZip from 'adm-zip';
 
 const GITHUB_OWNER = process.env.GITHUB_BACKUP_OWNER || 'mimok7';
 const GITHUB_REPO = process.env.GITHUB_BACKUP_REPO || 'admin';
@@ -45,6 +46,49 @@ async function gh(url: string, init: RequestInit = {}) {
   });
 }
 
+type VerifyScoreReport = {
+  generatedAt: string;
+  sourceCompared: boolean;
+  scores: {
+    structure: number;
+    rowCount: number;
+    sample: number;
+    total: number;
+  };
+  rowComparisons: Array<{ table: string; source: string; restored: string; matched: boolean }>;
+  checksumComparisons: Array<{ table: string; source: string; restored: string; matched: boolean }>;
+};
+
+async function getLatestVerifyReport(runId: number): Promise<VerifyScoreReport | null> {
+  const artifactsRes = await gh(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runs/${runId}/artifacts`
+  );
+  if (!artifactsRes.ok) return null;
+
+  const artifactsJson = await artifactsRes.json();
+  const artifacts = (artifactsJson.artifacts || []) as any[];
+  const reportArtifact = artifacts
+    .filter((a) => !a.expired && typeof a.name === 'string' && a.name.startsWith('restore-verify-report-'))
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0];
+
+  if (!reportArtifact?.archive_download_url) return null;
+
+  const zipRes = await gh(reportArtifact.archive_download_url);
+  if (!zipRes.ok) return null;
+
+  const zipBuffer = Buffer.from(await zipRes.arrayBuffer());
+  const zip = new AdmZip(zipBuffer);
+  const entry = zip.getEntries().find((e) => e.entryName.endsWith('verify-report.json'));
+  if (!entry) return null;
+
+  try {
+    const text = entry.getData().toString('utf8');
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
@@ -75,10 +119,12 @@ export async function GET(req: NextRequest) {
     actor: r.actor?.login,
   }));
   const latest = runs[0] || null;
+  const latestReport = latest?.id ? await getLatestVerifyReport(latest.id) : null;
   return NextResponse.json({
     workflow: VERIFY_WORKFLOW,
     latest,
     history: runs,
+    report: latestReport,
   });
 }
 

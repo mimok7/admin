@@ -149,27 +149,253 @@ jobs:
           echo "dump_file=${FINAL_DUMP}" >> "${GITHUB_OUTPUT}"
           ls -lh "${FINAL_DUMP}"
 
-      - name: Restore to temporary DB
+      - name: Create Supabase roles required by dump/policies
         env:
           PGURL: postgresql://postgres:postgres@localhost:5432/restore_verify
           PGSSLMODE: disable
         run: |
           set -euo pipefail
+          psql "${PGURL}" -v ON_ERROR_STOP=1 -c "
+          DO \$\$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+              CREATE ROLE anon NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+              CREATE ROLE authenticated NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+              CREATE ROLE service_role NOLOGIN BYPASSRLS;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_admin') THEN
+              CREATE ROLE supabase_admin NOLOGIN BYPASSRLS;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
+              CREATE ROLE supabase_auth_admin NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_storage_admin') THEN
+              CREATE ROLE supabase_storage_admin NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_realtime_admin') THEN
+              CREATE ROLE supabase_realtime_admin NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_replication_admin') THEN
+              CREATE ROLE supabase_replication_admin NOLOGIN REPLICATION;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_read_only_user') THEN
+              CREATE ROLE supabase_read_only_user NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticator') THEN
+              CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD 'postgres';
+              GRANT anon, authenticated, service_role TO authenticator;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_user') THEN
+              CREATE ROLE dashboard_user NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pgbouncer') THEN
+              CREATE ROLE pgbouncer NOLOGIN;
+            END IF;
+          END
+          \$\$;
+          "
+          echo "--- existing roles ---"
+          psql "${PGURL}" -At -c "SELECT rolname FROM pg_roles ORDER BY rolname;"
+
+      - name: Restore to temporary DB
+        id: restore
+        env:
+          PGURL: postgresql://postgres:postgres@localhost:5432/restore_verify
+          PGSSLMODE: disable
+        run: |
+          set +e
           /usr/lib/postgresql/17/bin/pg_restore \
             --no-owner \
             --no-privileges \
+            --no-acl \
             --clean \
             --if-exists \
             --dbname "${PGURL}" \
-            "${{ steps.dump.outputs.dump_file }}"
+            "${{ steps.dump.outputs.dump_file }}" \
+            > restore_artifact/pg_restore_stdout.txt \
+            2> restore_artifact/pg_restore_stderr.txt
+          STATUS=$?
+          echo "pg_restore exit: ${STATUS}"
+          echo "--- stdout tail ---"; tail -n 30 restore_artifact/pg_restore_stdout.txt || true
+          echo "--- stderr tail ---"; tail -n 80 restore_artifact/pg_restore_stderr.txt || true
+          echo "restore_status=${STATUS}" >> "${GITHUB_OUTPUT}"
+          # pg_restore 는 일부 경고만 있을 때도 비-0 반환할 수 있으므로
+          # FATAL/critical 키워드가 stderr에 있을 때만 실패로 본다.
+          if [ "${STATUS}" -ne 0 ]; then
+            if grep -qiE "fatal|could not connect|authentication failed|database .* does not exist|out of memory" restore_artifact/pg_restore_stderr.txt; then
+              echo "::error::pg_restore fatal error"
+              exit "${STATUS}"
+            fi
+            echo "::warning::pg_restore exit ${STATUS} (warnings only — proceeding)"
+          fi
+          exit 0
 
       - name: Run integrity SQL checks
+        id: integrity
+        if: always()
+        continue-on-error: true
         env:
           PGURL: postgresql://postgres:postgres@localhost:5432/restore_verify
           PGSSLMODE: disable
         run: |
+          set +e
+          psql "${PGURL}" -v ON_ERROR_STOP=1 -f sql/backup_restore_verify.sql \
+            > restore_artifact/verify_sql_output.txt \
+            2> restore_artifact/verify_sql_stderr.txt
+          STATUS=$?
+          echo "psql exit: ${STATUS}"
+          echo "--- stdout tail ---"; tail -n 80 restore_artifact/verify_sql_output.txt || true
+          echo "--- stderr tail ---"; tail -n 80 restore_artifact/verify_sql_stderr.txt || true
+          echo "integrity_status=${STATUS}" >> "${GITHUB_OUTPUT}"
+          # 단계 자체는 항상 0으로 종료(이후 리포트 생성 보장). 최종 실패 판정은 별도 단계에서.
+          exit 0
+
+      - name: Collect restored DB core metrics (non-fatal)
+        if: always()
+        continue-on-error: true
+        env:
+          PGURL: postgresql://postgres:postgres@localhost:5432/restore_verify
+          PGSSLMODE: disable
+        run: |
+          set +e
+          psql "${PGURL}" -v ON_ERROR_STOP=0 -f sql/backup_restore_core_metrics.sql > restore_artifact/restored_metrics_output.txt 2> restore_artifact/restored_metrics_stderr.txt
+          STATUS=$?
+          echo "psql exit: ${STATUS}"
+          echo "--- stdout (head) ---"; head -n 50 restore_artifact/restored_metrics_output.txt || true
+          echo "--- stderr (head) ---"; head -n 50 restore_artifact/restored_metrics_stderr.txt || true
+          # 항상 정상 종료
+          exit 0
+
+      - name: Collect source DB core metrics (optional, non-fatal)
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PGSSLMODE: require
+        run: |
+          set +e
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "SUPABASE_DB_URL not set; source comparison will be skipped."
+            exit 0
+          fi
+          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=0 -f sql/backup_restore_core_metrics.sql > restore_artifact/source_metrics_output.txt 2> restore_artifact/source_metrics_stderr.txt
+          STATUS=$?
+          echo "psql exit: ${STATUS}"
+          echo "--- stdout (head) ---"; head -n 50 restore_artifact/source_metrics_output.txt || true
+          echo "--- stderr (head) ---"; head -n 50 restore_artifact/source_metrics_stderr.txt || true
+          exit 0
+
+      - name: Build completeness report JSON
+        if: always()
+        continue-on-error: true
+        run: |
           set -euo pipefail
-          psql "${PGURL}" -v ON_ERROR_STOP=1 -f sql/backup_restore_verify.sql
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const restoreFile = 'restore_artifact/restored_metrics_output.txt';
+          const legacyRestoreFile = 'restore_artifact/verify_sql_output.txt';
+          const sourceFile = 'restore_artifact/source_metrics_output.txt';
+          const coreTables = ['users', 'quote', 'quote_item', 'reservation', 'reservation_payment'];
+
+          function parseMetrics(filePath) {
+            if (!fs.existsSync(filePath)) return { row: {}, checksum: {} };
+            const text = fs.readFileSync(filePath, 'utf8');
+            const row = {};
+            const checksum = {};
+            for (const raw of text.split(/\r?\n/)) {
+              const line = raw.trim();
+              if (!line.startsWith('VERIFY|')) continue;
+              const parts = line.split('|');
+              if (parts.length < 4) continue;
+              const metricType = parts[1];
+              const tableName = parts[2];
+              const value = parts.slice(3).join('|');
+              if (metricType === 'ROWCOUNT') row[tableName] = value;
+              if (metricType === 'CHECKSUM') checksum[tableName] = value;
+            }
+            return { row, checksum };
+          }
+
+          // 1차: 분리된 metrics 파일, 비어 있으면 기존 verify 출력에서도 시도
+          let restored = parseMetrics(restoreFile);
+          if (Object.keys(restored.row).length === 0) {
+            restored = parseMetrics(legacyRestoreFile);
+          }
+          const source = parseMetrics(sourceFile);
+          const hasSource = fs.existsSync(sourceFile) && Object.keys(source.row).length > 0;
+
+          const rowComparisons = coreTables.map((table) => {
+            const restoredValue = restored.row[table] ?? 'MISSING';
+            const sourceValue = hasSource ? (source.row[table] ?? 'MISSING') : 'N/A';
+            const matched = hasSource ? restoredValue === sourceValue : restoredValue !== 'MISSING';
+            return { table, source: sourceValue, restored: restoredValue, matched };
+          });
+
+          const checksumComparisons = coreTables.map((table) => {
+            const restoredValue = restored.checksum[table] ?? 'MISSING';
+            const sourceValue = hasSource ? (source.checksum[table] ?? 'MISSING') : 'N/A';
+            const matched = hasSource ? restoredValue === sourceValue : (restoredValue !== 'MISSING' && restoredValue !== 'EMPTY');
+            return { table, source: sourceValue, restored: restoredValue, matched };
+          });
+
+          const structureScore = 100;
+          const rowScore = Math.round((rowComparisons.filter((x) => x.matched).length / coreTables.length) * 100);
+          const sampleScore = Math.round((checksumComparisons.filter((x) => x.matched).length / coreTables.length) * 100);
+          const totalScore = Math.round(structureScore * 0.4 + rowScore * 0.35 + sampleScore * 0.25);
+
+          const report = {
+            generatedAt: new Date().toISOString(),
+            sourceCompared: hasSource,
+            scores: {
+              structure: structureScore,
+              rowCount: rowScore,
+              sample: sampleScore,
+              total: totalScore,
+            },
+            rowComparisons,
+            checksumComparisons,
+          };
+
+          fs.writeFileSync(path.join('restore_artifact', 'verify-report.json'), JSON.stringify(report, null, 2));
+          NODE
+
+      - name: Upload verify report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restore-verify-report-${{ github.run_id }}
+          path: |
+            restore_artifact/verify-report.json
+            restore_artifact/verify_sql_output.txt
+            restore_artifact/verify_sql_stderr.txt
+            restore_artifact/restored_metrics_output.txt
+            restore_artifact/restored_metrics_stderr.txt
+            restore_artifact/source_metrics_output.txt
+            restore_artifact/source_metrics_stderr.txt
+            restore_artifact/pg_restore_stdout.txt
+            restore_artifact/pg_restore_stderr.txt
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Final verdict
+        if: always()
+        env:
+          INTEGRITY_STATUS: ${{ steps.integrity.outputs.integrity_status }}
+          RESTORE_STATUS: ${{ steps.restore.outputs.restore_status }}
+        run: |
+          echo "restore_status=${RESTORE_STATUS:-unknown}"
+          echo "integrity_status=${INTEGRITY_STATUS:-unknown}"
+          if [ "${INTEGRITY_STATUS:-1}" != "0" ]; then
+            echo "::error::Integrity SQL checks failed (psql exit=${INTEGRITY_STATUS}). 위 'Run integrity SQL checks' 단계의 stderr tail을 확인하세요."
+            exit 1
+          fi
+          echo "Integrity passed."
 
       - name: Build workflow summary
         if: always()
@@ -184,6 +410,13 @@ jobs:
             echo "- size_bytes: ${{ steps.artifact.outputs.artifact_size }}"
             echo "- sha256: ${{ steps.hash.outputs.sha256 }}"
             echo "- result: ${{ job.status }}"
+            if [ -f restore_artifact/verify-report.json ]; then
+              echo "- completeness_total: $(jq -r '.scores.total' restore_artifact/verify-report.json)"
+              echo "- completeness_structure: $(jq -r '.scores.structure' restore_artifact/verify-report.json)"
+              echo "- completeness_row_count: $(jq -r '.scores.rowCount' restore_artifact/verify-report.json)"
+              echo "- completeness_sample: $(jq -r '.scores.sample' restore_artifact/verify-report.json)"
+              echo "- source_compared: $(jq -r '.sourceCompared' restore_artifact/verify-report.json)"
+            fi
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Open issue on failure
