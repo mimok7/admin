@@ -40,6 +40,18 @@ function getPgRestorePath(): string {
   return 'pg_restore'; // PATH에 있다고 가정
 }
 
+// pg_restore 경로에서 psql 경로 유추
+function getPsqlPathFrom(pgRestorePath: string): string {
+  if (process.env.PSQL_PATH) return process.env.PSQL_PATH;
+  if (pgRestorePath.endsWith('pg_restore.exe')) {
+    return pgRestorePath.replace(/pg_restore\.exe$/, 'psql.exe');
+  }
+  if (pgRestorePath.endsWith('pg_restore')) {
+    return pgRestorePath.replace(/pg_restore$/, 'psql');
+  }
+  return 'psql';
+}
+
 async function checkAdmin(req: NextRequest): Promise<{ ok: boolean; error?: string; status?: number }> {
   if (!serviceSupabase) {
     return { ok: false, error: 'SUPABASE_SERVICE_ROLE_KEY 미설정', status: 500 };
@@ -78,7 +90,7 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const body = await req.json();
-    const { artifactId, tables = [], confirmText } = body;
+    const { artifactId, tables = [], confirmText, truncateBefore = false } = body;
 
     if (!artifactId) {
       return NextResponse.json({ error: 'artifactId는 필수입니다.' }, { status: 400 });
@@ -172,6 +184,48 @@ export async function POST(req: NextRequest) {
 
     // 4. pg_restore 실행
     const execPromise = promisify(exec);
+
+    // 4-0. (옵션) 기존 데이터 TRUNCATE
+    let truncateOutput = '';
+    if (truncateBefore) {
+      const psqlPath = getPsqlPathFrom(pgRestore);
+      if (!existsSync(psqlPath) && psqlPath !== 'psql') {
+        return NextResponse.json(
+          { error: `psql을 찾을 수 없습니다: ${psqlPath}` },
+          { status: 500 }
+        );
+      }
+      // 안전한 식별자만 허용 (영숫자/밑줄)
+      const safeTables = tables.filter((t: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(t));
+      if (safeTables.length === 0) {
+        return NextResponse.json(
+          { error: 'TRUNCATE할 유효한 테이블 이름이 없습니다' },
+          { status: 400 }
+        );
+      }
+      const tableList = safeTables.map((t: string) => `"public"."${t}"`).join(', ');
+      const truncateSql = `TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE;`;
+      const truncateCmd = `"${psqlPath}" "${dbUrl}" -v ON_ERROR_STOP=1 -c "${truncateSql.replace(/"/g, '\\"')}"`;
+      try {
+        const r = await execPromise(truncateCmd, {
+          env: { ...process.env, PGSSLMODE: 'require', PGCLIENTENCODING: 'UTF8', LC_MESSAGES: 'C', LANG: 'C' },
+          timeout: 60000,
+          maxBuffer: 5 * 1024 * 1024,
+        });
+        truncateOutput = (r.stdout || '') + (r.stderr || '');
+      } catch (err: any) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'TRUNCATE 실패',
+            stderr: (err.stderr || err.message || '').slice(0, 5000),
+            stdout: (err.stdout || '').slice(0, 2000),
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     const tableArgs = tables.map((t: string) => `--table="${t}"`).join(' ');
     const command = `"${pgRestore}" --no-owner --no-privileges --data-only --disable-triggers --dbname="${dbUrl}" ${tableArgs} "${dumpFile}"`;
 
@@ -179,7 +233,7 @@ export async function POST(req: NextRequest) {
     let stderr = '';
     try {
       const result = await execPromise(command, {
-        env: { ...process.env, PGSSLMODE: 'require' },
+        env: { ...process.env, PGSSLMODE: 'require', PGCLIENTENCODING: 'UTF8', LC_MESSAGES: 'C', LANG: 'C' },
         timeout: 240000, // 4분
         maxBuffer: 10 * 1024 * 1024, // 10MB
       });
@@ -209,6 +263,8 @@ export async function POST(req: NextRequest) {
       ok: true,
       message: '복원이 완료되었습니다.',
       restoredTables: tables,
+      truncated: truncateBefore,
+      truncateOutput: truncateOutput.slice(0, 2000),
       stdout: stdout.slice(0, 2000),
       stderr: stderr.slice(0, 2000),
     });

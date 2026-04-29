@@ -66,6 +66,7 @@ export default function AdminBackupPage() {
   const [restoreStep, setRestoreStep] = useState<RestoreStep>('select');
   const [generatedScript, setGeneratedScript] = useState<GeneratedScript | null>(null);
   const [confirmText, setConfirmText] = useState<string>('');
+  const [truncateBefore, setTruncateBefore] = useState<boolean>(true);
   const [restoring, setRestoring] = useState(false);
   const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message?: string; stdout?: string; stderr?: string; error?: string; stack?: string; code?: string } | null>(null);
 
@@ -233,6 +234,7 @@ export default function AdminBackupPage() {
           artifactId: selectedArtifact.id,
           tables: selectedTables,
           confirmText,
+          truncateBefore,
         }),
       });
 
@@ -603,6 +605,21 @@ export default function AdminBackupPage() {
                         placeholder="RESTORE 입력"
                         className="w-full px-3 py-2 border border-red-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-400"
                       />
+                      <label className="flex items-start gap-2 mt-3 text-xs text-red-900 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={truncateBefore}
+                          onChange={(e) => setTruncateBefore(e.target.checked)}
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <strong>기존 데이터 삭제(TRUNCATE) 후 복원</strong>
+                          <br />
+                          <span className="text-red-700">
+                            체크 시 선택한 테이블의 모든 행을 비우고(CASCADE) 복원합니다. 체크하지 않으면 PK 충돌로 실패할 수 있습니다.
+                          </span>
+                        </span>
+                      </label>
                     </div>
 
                     {restoreResult && !restoreResult.ok && (
