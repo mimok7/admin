@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
+import { getSupabase } from '@/lib/supabase';
 
 const PG_DUMP_COMMAND = `pg_dump --no-owner --no-privileges \\
   --dbname "$SUPABASE_DB_URL" \\
@@ -87,9 +88,14 @@ export default function AdminBackupPage() {
     setLoading(true);
     setError('');
     try {
+      const { data: { session } } = await getSupabase().auth.getSession();
+      const authHeaders: HeadersInit = session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+
       const [artRes, tableRes] = await Promise.all([
-        fetch('/api/admin/backup/artifacts', { cache: 'no-store' }),
-        fetch('/api/admin/backup/tables', { cache: 'no-store' }),
+        fetch('/api/admin/backup/artifacts', { cache: 'no-store', headers: authHeaders }),
+        fetch('/api/admin/backup/tables', { cache: 'no-store', headers: authHeaders }),
       ]);
 
       if (!artRes.ok) throw new Error(`Artifact 조회 실패: ${artRes.status}`);
@@ -157,9 +163,14 @@ export default function AdminBackupPage() {
     setLoading(true);
     setError('');
     try {
+      const { data: { session } } = await getSupabase().auth.getSession();
+      const authHeaders: Record<string, string> = session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+
       const res = await fetch('/api/admin/backup/generate-script', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           artifactId: selectedArtifact.id,
           tables: selectedTables,
