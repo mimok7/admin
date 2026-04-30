@@ -4,6 +4,14 @@ on:
   schedule:
     - cron: '0 18 * * *' # UTC 18:00 = KST 03:00
   workflow_dispatch:
+  workflow_call:
+    secrets:
+      SUPABASE_DB_URL:
+        required: false
+      RCLONE_CONFIG_BASE64:
+        required: false
+      RCLONE_REMOTE_PATH:
+        required: false
 
 permissions:
   contents: read
@@ -15,7 +23,11 @@ jobs:
 
     steps:
       - name: Set timestamp
-        run: echo "TS=$(date +%F_%H%M%S)" >> $GITHUB_ENV
+        id: ts
+        run: |
+          TS=$(date +%F_%H%M%S)
+          echo "TS=$TS" >> $GITHUB_ENV
+          echo "value=$TS" >> $GITHUB_OUTPUT
 
       - name: Install PostgreSQL 17 client and gzip
         run: |
@@ -32,8 +44,9 @@ jobs:
           pg_dump --version
 
       - name: Dump database
+        id: dump
         env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_URL: ${{ secrets['SUPABASE_DB_URL'] }}
           PGSSLMODE: require
         run: |
           if [ -z "$SUPABASE_DB_URL" ]; then
@@ -58,19 +71,20 @@ jobs:
             --file "$FILE"
           gzip -f "$FILE"
           echo "BACKUP_FILE=${FILE}.gz" >> $GITHUB_ENV
+          echo "file=${FILE}.gz" >> $GITHUB_OUTPUT
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
         with:
-          name: supabase-backup-${{ env.TS }}
-          path: ${{ env.BACKUP_FILE }}
+          name: supabase-backup-${{ steps.ts.outputs.value }}
+          path: ${{ steps.dump.outputs.file }}
           retention-days: 30
 
       - name: Check rclone config
         id: rclone_check
         env:
-          RCLONE_CONFIG_BASE64: ${{ secrets.RCLONE_CONFIG_BASE64 }}
-          RCLONE_REMOTE_PATH: ${{ secrets.RCLONE_REMOTE_PATH }}
+          RCLONE_CONFIG_BASE64: ${{ secrets['RCLONE_CONFIG_BASE64'] }}
+          RCLONE_REMOTE_PATH: ${{ secrets['RCLONE_REMOTE_PATH'] }}
         run: |
           if [ -n "$RCLONE_CONFIG_BASE64" ] && [ -n "$RCLONE_REMOTE_PATH" ]; then
             echo "enabled=true" >> $GITHUB_OUTPUT
@@ -82,7 +96,7 @@ jobs:
       - name: Configure rclone (optional)
         if: steps.rclone_check.outputs.enabled == 'true'
         env:
-          RCLONE_CONFIG_BASE64: ${{ secrets.RCLONE_CONFIG_BASE64 }}
+          RCLONE_CONFIG_BASE64: ${{ secrets['RCLONE_CONFIG_BASE64'] }}
         run: |
           mkdir -p ~/.config/rclone
           echo "$RCLONE_CONFIG_BASE64" | base64 -d > ~/.config/rclone/rclone.conf
@@ -90,7 +104,7 @@ jobs:
       - name: Upload to cloud drive via rclone (optional)
         if: steps.rclone_check.outputs.enabled == 'true'
         env:
-          RCLONE_REMOTE_PATH: ${{ secrets.RCLONE_REMOTE_PATH }}
+          RCLONE_REMOTE_PATH: ${{ secrets['RCLONE_REMOTE_PATH'] }}
         run: |
           curl -fsSL https://rclone.org/install.sh | sudo bash
           rclone copy "${BACKUP_FILE}" "${RCLONE_REMOTE_PATH}" --create-empty-src-dirs
