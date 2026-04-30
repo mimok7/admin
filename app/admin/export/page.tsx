@@ -230,6 +230,14 @@ export default function ExportPage() {
           Google Drive 자동 업로드는 저장소 Secrets에
           <code className="mx-1">GOOGLE_DRIVE_FOLDER_ID</code>
           와 서비스 계정 키를 설정하면 함께 동작합니다.
+          <div className="mt-3">
+            <a
+              href="/admin/backup/setup"
+              className="inline-flex items-center px-3 py-1.5 rounded-md bg-amber-700 text-white hover:bg-amber-800 text-xs"
+            >
+              ✅ 엑셀 자동 설정 페이지 열기
+            </a>
+          </div>
         </div>
 
         {/* 모드 탭 */}

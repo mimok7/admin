@@ -268,3 +268,27 @@ select {
 .animate-subtlePulse {
   animation: subtlePulse 2s ease-in-out infinite;
 }
+
+/* 관리자 화면 글자 크기 소폭 상향 (전체적으로 너무 작아 보이는 문제 보정) */
+.admin-root {
+  font-size: 15px;
+}
+
+.admin-root .text-xs {
+  font-size: 0.8rem;
+  line-height: 1.2rem;
+}
+
+.admin-root .text-sm {
+  font-size: 0.95rem;
+  line-height: 1.35rem;
+}
+
+.admin-root .text-base {
+  font-size: 1.05rem;
+  line-height: 1.5rem;
+}
+
+.admin-root button {
+  font-size: 0.85rem;
+}

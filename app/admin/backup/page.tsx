@@ -71,6 +71,13 @@ export default function AdminBackupPage() {
   const [restoring, setRestoring] = useState(false);
   const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message?: string; stdout?: string; stderr?: string; error?: string; stack?: string; code?: string; restoredTables?: string[]; addedDependents?: string[]; truncated?: boolean } | null>(null);
 
+  // ── 전체 복원 (현재 계정) 전용 상태 ──
+  const [fullRestoreOpen, setFullRestoreOpen] = useState<boolean>(false);
+  const [fullRestoreArtifactId, setFullRestoreArtifactId] = useState<string>('');
+  const [fullRestoreConfirm, setFullRestoreConfirm] = useState<string>('');
+  const [fullRestoreRunning, setFullRestoreRunning] = useState<boolean>(false);
+  const [fullRestoreResult, setFullRestoreResult] = useState<any>(null);
+
   const today = useMemo(() => {
     return new Date().toLocaleString('ko-KR', {
       year: 'numeric',
@@ -256,6 +263,59 @@ export default function AdminBackupPage() {
     }
   };
 
+  // 🔄 기존 계정에 전체 복원 — 모든 테이블을 한 번에 TRUNCATE+RESTORE
+  const executeFullRestore = async () => {
+    if (!fullRestoreArtifactId) {
+      setError('백업 파일을 선택하세요.');
+      return;
+    }
+    if (fullRestoreConfirm !== 'RESTORE-ALL') {
+      setError('확인 텍스트로 "RESTORE-ALL"을 입력하세요.');
+      return;
+    }
+    if (tables.length === 0) {
+      setError('복원할 테이블 목록이 비어 있습니다. 새로고침 후 다시 시도하세요.');
+      return;
+    }
+    if (!confirm(
+      `⚠️ 현재 계정의 모든 ${tables.length}개 테이블 데이터가 백업 파일로 덮어쓰기 됩니다.\n` +
+      `이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`
+    )) return;
+
+    setFullRestoreRunning(true);
+    setError('');
+    setSuccess('');
+    setFullRestoreResult(null);
+    try {
+      const { data: { session } } = await getSupabase().auth.getSession();
+      const authHeaders: Record<string, string> = session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+      const res = await fetch('/api/admin/backup/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({
+          artifactId: fullRestoreArtifactId,
+          tables, // 전체 테이블
+          confirmText: 'RESTORE',
+          truncateBefore: true,
+          includeDependents: true,
+        }),
+      });
+      const data = await res.json();
+      setFullRestoreResult(data);
+      if (res.ok && data.ok) {
+        setSuccess(`✅ 전체 복원 완료: ${data.restoredTables?.length ?? tables.length}개 테이블`);
+      } else {
+        setError(data.error || '전체 복원 실패');
+      }
+    } catch (e: any) {
+      setError(e.message || '전체 복원 중 오류 발생');
+    } finally {
+      setFullRestoreRunning(false);
+    }
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -437,6 +497,165 @@ export default function AdminBackupPage() {
               </a>
             </div>
 
+            {/* ⚡ 전체 복원 모드 선택 — 한 번에 처리 */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">⚡ 전체 복원 (한번에 처리)</h3>
+                  <p className="text-xs text-gray-600 mt-1">
+                    아래 두 가지 모드 중 선택하세요. 대상 DB·확인 텍스트·복원 범위가 다르므로 분리되어 있습니다.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* 기존 계정 전체 복원 */}
+                <div className="border-2 border-red-200 bg-red-50 rounded-lg p-4 flex flex-col">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">🔄</span>
+                    <h4 className="font-semibold text-red-900">기존 계정에 전체 복원</h4>
+                  </div>
+                  <ul className="text-xs text-red-800 space-y-1 mb-3 flex-1">
+                    <li>• 대상: <b>현재 프로젝트</b> (<code>SUPABASE_DB_URL</code>)</li>
+                    <li>• 모드: 모든 테이블 <b>TRUNCATE 후 data-only</b> 복원</li>
+                    <li>• 확인 텍스트: <code className="bg-red-100 px-1 rounded">RESTORE-ALL</code></li>
+                    <li>• 스키마는 변경되지 않습니다 (데이터만 덮어씀)</li>
+                  </ul>
+                  <button
+                    onClick={() => {
+                      setFullRestoreOpen(true);
+                      setError('');
+                      setSuccess('');
+                      setFullRestoreResult(null);
+                      if (artifacts.length > 0 && !fullRestoreArtifactId) {
+                        setFullRestoreArtifactId(artifacts[0].id);
+                      }
+                    }}
+                    className="px-3 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md"
+                  >
+                    🚨 전체 복원 시작
+                  </button>
+                </div>
+
+                {/* 새로운 계정 전체 이전 */}
+                <div className="border-2 border-purple-200 bg-purple-50 rounded-lg p-4 flex flex-col">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">📦</span>
+                    <h4 className="font-semibold text-purple-900">새로운 계정에 전체 이전</h4>
+                  </div>
+                  <ul className="text-xs text-purple-800 space-y-1 mb-3 flex-1">
+                    <li>• 대상: <b>다른 Supabase 프로젝트</b> (사용자가 URL 입력)</li>
+                    <li>• 모드: <b>스키마 + 데이터 + 함수/트리거 전체</b> (<code>--clean</code>)</li>
+                    <li>• 확인 텍스트: <code className="bg-purple-100 px-1 rounded">MIGRATE</code></li>
+                    <li>• 새 프로젝트가 비어 있어도 OK (스키마부터 생성)</li>
+                  </ul>
+                  <a
+                    href="/admin/backup/migrate"
+                    className="px-3 py-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-md text-center"
+                  >
+                    📦 계정 이전 페이지로 →
+                  </a>
+                </div>
+              </div>
+
+              {/* 기존 계정 전체 복원 패널 */}
+              {fullRestoreOpen && (
+                <div className="mt-5 border-2 border-red-300 rounded-lg p-4 bg-red-50/50 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-red-900">🔄 기존 계정 전체 복원 — 실행 패널</h4>
+                    <button
+                      onClick={() => setFullRestoreOpen(false)}
+                      className="text-xs text-gray-600 hover:text-gray-900"
+                    >
+                      ✕ 닫기
+                    </button>
+                  </div>
+
+                  {loading && <p className="text-xs text-gray-600">백업 파일/테이블 목록 로드 중...</p>}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-red-900 mb-1">
+                      복원할 백업 파일 ({artifacts.length}개)
+                    </label>
+                    <select
+                      value={fullRestoreArtifactId}
+                      onChange={(e) => setFullRestoreArtifactId(e.target.value)}
+                      className="w-full px-3 py-2 border border-red-300 rounded-md text-sm bg-white"
+                    >
+                      <option value="">— 백업 파일 선택 —</option>
+                      {artifacts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} | {formatFileSize(a.size_in_bytes)} | {formatDate(a.created_at)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="bg-white rounded-md border border-red-200 p-3 text-xs">
+                    <div className="font-semibold text-gray-700 mb-1">
+                      복원 범위: 현재 DB의 모든 public 테이블 ({tables.length}개)
+                    </div>
+                    <div className="text-gray-600">
+                      TRUNCATE RESTART IDENTITY CASCADE 후 data-only 복원이 수행됩니다. 외래키 의존성도 자동 포함됩니다.
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-red-900 mb-1">
+                      확인 텍스트 — <code className="bg-red-100 px-1 rounded">RESTORE-ALL</code> 입력
+                    </label>
+                    <input
+                      type="text"
+                      value={fullRestoreConfirm}
+                      onChange={(e) => setFullRestoreConfirm(e.target.value)}
+                      placeholder="RESTORE-ALL"
+                      className="w-full px-3 py-2 border border-red-300 rounded-md text-sm font-mono"
+                    />
+                  </div>
+
+                  {fullRestoreResult && !fullRestoreResult.ok && (
+                    <div className="bg-gray-900 text-gray-100 rounded-md p-3 text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
+                      <div className="text-red-400">[error] {fullRestoreResult.error || '실패'}</div>
+                      {fullRestoreResult.stderr && (
+                        <div className="text-yellow-400 mt-1">{fullRestoreResult.stderr}</div>
+                      )}
+                    </div>
+                  )}
+
+                  {fullRestoreResult?.ok && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3 text-xs text-emerald-900">
+                      ✅ 전체 복원 완료 — {fullRestoreResult.restoredTables?.length ?? 0}개 테이블
+                      {fullRestoreResult.addedDependents?.length > 0 && (
+                        <div className="mt-1">자동 포함 의존 테이블: {fullRestoreResult.addedDependents.length}개</div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setFullRestoreOpen(false)}
+                      disabled={fullRestoreRunning}
+                      className="px-3 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md disabled:opacity-50"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={executeFullRestore}
+                      disabled={
+                        fullRestoreRunning ||
+                        !fullRestoreArtifactId ||
+                        fullRestoreConfirm !== 'RESTORE-ALL' ||
+                        tables.length === 0
+                      }
+                      className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-400 rounded-md"
+                    >
+                      {fullRestoreRunning ? '복원 중...' : `🚨 ${tables.length}개 테이블 전체 복원 실행`}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* 에러/성공 메시지 */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -452,6 +671,12 @@ export default function AdminBackupPage() {
             {/* Step 1: 백업 선택 */}
             {restoreStep === 'select' && (
               <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 space-y-4">
+                <div className="border-b border-gray-200 pb-3 mb-2">
+                  <h3 className="text-base font-semibold text-gray-900">🧩 선택 복원 마법사 (부분 복원)</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    특정 테이블만 골라서 복원합니다. 전체 복원이 필요하면 위쪽의 "전체 복원" 버튼을 사용하세요.
+                  </p>
+                </div>
                 <div>
                   <h4 className="text-base font-semibold text-gray-900 mb-2">Step 1: 백업 파일 선택</h4>
                   <p className="text-sm text-gray-600">

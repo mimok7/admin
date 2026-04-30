@@ -205,8 +205,6 @@ export default function AdminSettingsPage() {
         // 콘솔 보호
         const consoleWarning = () => {
             console.clear();
-            console.log('%c🔒 STOP!', 'color: red; font-size: 50px; font-weight: bold;');
-            console.log('%c이것은 브라우저 기능입니다. 개발자가 아닌 경우 이곳에 코드를 붙여넣지 마세요. 악의적인 사용자가 귀하의 계정을 탈취할 수 있습니다.', 'color: red; font-size: 16px;');
         };
 
         // 콘솔 경고 표시

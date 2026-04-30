@@ -194,7 +194,6 @@ export default function AdminPackagesPage() {
                     })
                     .eq('id', packageId);
                 if (masterError) throw masterError;
-                console.log('Master updated:', packageId);
             } else {
                 const { data, error: masterError } = await supabase
                     .from('package_master')
@@ -216,7 +215,6 @@ export default function AdminPackagesPage() {
                 if (masterError) throw masterError;
                 if (!data || data.length === 0) throw new Error('데이터 저장 실패');
                 packageId = data[0].id;
-                console.log('Master created:', packageId);
             }
 
             // 2. 구성 아이템 갱신
@@ -243,7 +241,6 @@ export default function AdminPackagesPage() {
 
                     const { error: itemsError } = await supabase.from('package_items').insert(itemsToInsert);
                     if (itemsError) throw itemsError;
-                    console.log('Items updated:', itemsToInsert.length);
                 }
             }
 

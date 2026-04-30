@@ -20,16 +20,17 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
   // usePathname is a hook; call it early so hook order doesn't change between renders
   const pathname = usePathname();
 
-  // 권한 캐시 키 (sessionStorage 기준 - 탭 닫으면 자동 삭제)
-  const ADMIN_CACHE_KEY = 'sht_admin_auth_cache_v1';
-  const ADMIN_CACHE_TTL_MS = 5 * 60 * 1000; // 5분
+  // 권한 캐시 키 (localStorage 기준 - 탭/세션 간 공유, TTL로 만료 관리)
+  const ADMIN_CACHE_KEY = 'sht_admin_auth_cache_v2';
+  const ADMIN_CACHE_TTL_MS = 30 * 60 * 1000; // 30분 (이전: 5분)
+  const ADMIN_CACHE_REVALIDATE_AFTER_MS = 20 * 60 * 1000; // 20분 지나면 백그라운드 재검증
 
   type AdminCache = { userId: string; email?: string; role: string; ts: number };
 
   const readAdminCache = (): AdminCache | null => {
     if (typeof window === 'undefined') return null;
     try {
-      const raw = sessionStorage.getItem(ADMIN_CACHE_KEY);
+      const raw = localStorage.getItem(ADMIN_CACHE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as AdminCache;
       if (!parsed?.userId || !parsed?.role) return null;
@@ -43,7 +44,7 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
   const writeAdminCache = (data: Omit<AdminCache, 'ts'>) => {
     if (typeof window === 'undefined') return;
     try {
-      sessionStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify({ ...data, ts: Date.now() }));
+      localStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify({ ...data, ts: Date.now() }));
     } catch {
       /* ignore quota errors */
     }
@@ -51,7 +52,18 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
 
   const clearAdminCache = () => {
     if (typeof window === 'undefined') return;
-    try { sessionStorage.removeItem(ADMIN_CACHE_KEY); } catch { /* ignore */ }
+    try {
+      localStorage.removeItem(ADMIN_CACHE_KEY);
+      // 구 버전 키도 정리
+      sessionStorage.removeItem('sht_admin_auth_cache_v1');
+    } catch { /* ignore */ }
+  };
+
+  // JWT 메타데이터에서 role 추출 (있으면 DB 쿼리 스킵)
+  const extractRoleFromUser = (u: any): string | null => {
+    if (!u) return null;
+    const r = u?.app_metadata?.role || u?.user_metadata?.role;
+    return typeof r === 'string' ? r : null;
   };
 
   useEffect(() => {
@@ -96,14 +108,23 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
         if (cancelled) return;
         setUser(sessionUser);
 
-        // 관리자 역할 조회 (5초 타임아웃)
+        // ① JWT 메타데이터에 role 이 있으면 DB 조회 생략 (즉시 통과)
+        const metaRole = extractRoleFromUser(sessionUser);
+        if (metaRole === 'admin') {
+          setUserRole('admin');
+          writeAdminCache({ userId: sessionUser.id, email: sessionUser.email, role: 'admin' });
+          setIsLoading(false);
+          return;
+        }
+
+        // ② DB 조회 (2.5초 타임아웃)
         const rolePromise = supabase
           .from('users')
           .select('role, email')
           .eq('id', sessionUser.id)
           .single();
         const timeoutPromise = new Promise<{ data: any; error: any }>((resolve) => {
-          setTimeout(() => resolve({ data: null, error: { message: 'role_check_timeout' } }), 5000);
+          setTimeout(() => resolve({ data: null, error: { message: 'role_check_timeout' } }), 2500);
         });
         const { data: userData, error: roleError } = await Promise.race([rolePromise, timeoutPromise]);
 
@@ -138,8 +159,11 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
       setUser({ id: cached.userId, email: cached.email });
       setUserRole(cached.role);
       setIsLoading(false);
-      // 백그라운드에서 검증
-      verifyInBackground(cached.userId);
+      // 캐시 나이가 절반(20분) 이상일 때만 백그라운드 검증 → 매번 네트워크 콜 방지
+      const age = Date.now() - (cached.ts || 0);
+      if (age >= ADMIN_CACHE_REVALIDATE_AFTER_MS) {
+        verifyInBackground(cached.userId);
+      }
     } else {
       // 캐시 없으면 정규 검증
       fullCheck();
@@ -207,7 +231,7 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
         { id: 'backup-verify', label: '복원 검증', path: '/admin/backup/verify', icon: '🔬' },
         { id: 'backup-migrate', label: '계정 이전', path: '/admin/backup/migrate', icon: '📦' },
         { id: 'backup-guide', label: '백업 지침', path: '/admin/backup/guide', icon: '📘' },
-        { id: 'backup-setup', label: '설정 체크리스트', path: '/admin/backup/setup', icon: '✅' },
+        { id: 'backup-setup', label: '엑셀 자동 설정', path: '/admin/backup/setup', icon: '✅' },
         { id: 'export', label: '엑셀 내보내기', path: '/admin/export', icon: '📤' },
       ]
     },
@@ -245,16 +269,26 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
       aria-current={computedActiveTab === tab.id ? 'page' : undefined}
     >
       <span className="text-lg inline-block w-6 text-center">{tab.icon}</span>
-      <span className="ml-1">{tab.label}</span>
+      <span className="ml-1 whitespace-nowrap">{tab.label}</span>
     </Link>
   );
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-4">⚙️</div>
-          <p>관리자 권한 확인 중...</p>
+        <div className="text-center max-w-sm">
+          <div className="text-4xl mb-4 animate-pulse">⚙️</div>
+          <p className="text-gray-700">관리자 권한 확인 중...</p>
+          <p className="text-xs text-gray-400 mt-2">최대 2.5초 후 자동 진행됩니다</p>
+          <button
+            onClick={() => {
+              clearAdminCache();
+              router.push('/login');
+            }}
+            className="mt-4 text-xs text-blue-600 hover:underline"
+          >
+            오래 걸리면 다시 로그인
+          </button>
         </div>
       </div>
     );
@@ -262,7 +296,7 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
 
   return (
     <SecurityProvider>
-      <div className="min-h-screen bg-gray-100">
+      <div className="admin-root min-h-screen bg-gray-100">
         {/* Admin Header */}
         <header className="sticky top-0 z-50 bg-blue-100 text-blue-900 shadow-sm">
           <div className="w-full px-0">
@@ -300,7 +334,7 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
         <div className="w-full px-0 py-6">
           <div className="flex">
             {/* Sidebar */}
-            <aside className="w-48 mr-4 mb-0 flex-none order-1">
+            <aside className="w-60 mr-4 mb-0 flex-none order-1">
               <div className="bg-white rounded-lg shadow-sm p-4 md:sticky md:top-24 flex flex-col justify-between h-full">
                 <nav className="space-y-1">
                   {renderTabLink(dashboardTab)}
@@ -317,7 +351,7 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
                         >
                           <span className="flex items-center gap-3">
                             <span className="text-lg inline-block w-6 text-center">{group.icon}</span>
-                            <span className="ml-1 font-semibold">{group.label}</span>
+                            <span className="ml-1 font-semibold whitespace-nowrap">{group.label}</span>
                           </span>
                           <span className={`text-xs transition-transform ${isOpen ? 'rotate-90' : ''}`}>▶</span>
                         </button>

@@ -237,11 +237,6 @@ export default function AdminConfirmationGeneratePage() {
 
             const pdfBlob = pdf.output('blob');
 
-            // 이메일 전송 (실제 구현시 백엔드 API 호출)
-            console.log('📧 이메일 전송 준비');
-            console.log('수신자:', quoteData.user_email);
-            console.log('PDF 크기:', (pdfBlob.size / 1024 / 1024).toFixed(2), 'MB');
-
             // HTML 이메일 템플릿
             const emailTemplate = `
                 <!DOCTYPE html>
@@ -393,14 +388,6 @@ export default function AdminConfirmationGeneratePage() {
                     }
                 ]
             };
-
-            console.log('📧 전송할 이메일 데이터:', {
-                to: emailData.to,
-                cc: emailData.cc,
-                subject: emailData.subject,
-                attachmentSize: (pdfBlob.size / 1024).toFixed(2) + 'KB',
-                htmlSize: (emailTemplate.length / 1024).toFixed(2) + 'KB'
-            });
 
             // 실제 API 호출 (현재는 시뮬레이션)
             // const response = await fetch('/api/send-email', {

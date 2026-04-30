@@ -134,8 +134,6 @@ export default function DataManagementPage() {
                 userId => !uniqueQuoteUserIds.has(userId)
             );
 
-            console.log(`견적 생성 대상: ${usersWithoutQuotes.length}명`);
-
             // 각 사용자에 대해 기본 견적 생성
             for (const userId of usersWithoutQuotes) {
                 const { error } = await supabase
@@ -221,8 +219,6 @@ export default function DataManagementPage() {
                 }
             });
 
-            console.log(`연결 가능: ${reservationsToUpdate.length}건, 견적 없음: ${skippedCount}건`);
-
             // 배치로 예약 업데이트
             const batchSize = 100;
             let updatedCount = 0;
@@ -242,7 +238,6 @@ export default function DataManagementPage() {
                     }
                 }
 
-                console.log(`진행률: ${Math.min(i + batchSize, reservationsToUpdate.length)}/${reservationsToUpdate.length}`);
             }
 
             alert(`✅ 예약-견적 연결 완료!\\n\\n- 연결된 예약: ${updatedCount}건\\n- 견적 없어서 건너뛴 예약: ${skippedCount}건`);

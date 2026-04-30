@@ -228,9 +228,6 @@ export default function SyncShCCToReservationPage() {
         try {
             for (const shCC of needsSyncData) {
                 processedCount++;
-                if (processedCount % 10 === 0) {
-                    console.log(`동기화 진행중: ${processedCount}/${needsSyncData.length}`);
-                }
                 const key = shCCKey(shCC);
                 const existing = existingReservations.get(key);
 
@@ -248,7 +245,7 @@ export default function SyncShCCToReservationPage() {
 
                     // 2. reservation이 없으면 신규 car_sht 예약은 생성하지 않음 (운영 데이터 분리 정책)
                     if (!reservationData) {
-                        console.log('ℹ️ car_sht 신규 reservation 생성 생략:', shCC.order_id);
+                        // no-op: 정책상 신규 reservation 생성 생략
                     }
 
                     // 3. reservation_car_sht 삭제 후 생성 (API 호출로 RLS 우회)

@@ -57,7 +57,6 @@ export default function AuthSyncPage() {
     const loadData = async () => {
         try {
             setLoading(true);
-            console.log('🔄 인증 동기화 데이터 로드 시작...');
 
             // users 테이블에서 모든 사용자 조회 (페이징)
             let allUsers: User[] = [];
@@ -81,7 +80,6 @@ export default function AuthSyncPage() {
                 }
 
                 allUsers = [...allUsers, ...usersBatch];
-                console.log(`📥 users ${page + 1}페이지 로드: ${usersBatch.length}개, 총: ${allUsers.length}개`);
 
                 if (usersBatch.length < pageSize) {
                     break;
@@ -92,10 +90,6 @@ export default function AuthSyncPage() {
 
             setUsers(allUsers);
             setLoading(false); // 사용자 목록 먼저 표시
-
-            console.log('✅ 전체 사용자 로드 완료:', {
-                usersCount: allUsers.length
-            });
 
             // 각 사용자의 인증 상태 확인 (백그라운드에서 진행)
             checkAuthStatus(allUsers);
@@ -108,14 +102,11 @@ export default function AuthSyncPage() {
     };
 
     const checkAuthStatus = async (userList: User[]) => {
-        console.log('🔍 인증 상태 확인 시작...');
-
         // 이메일이 있는 사용자만 체크
         const usersToCheck = userList.filter(u => u.email);
         const userIds = usersToCheck.map(u => u.id);
 
         if (userIds.length === 0) {
-            console.log('⚠️ 확인할 사용자가 없습니다.');
             setAuthCheckProgress(null);
             return;
         }
@@ -130,8 +121,6 @@ export default function AuthSyncPage() {
             for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
                 const batchIds = userIds.slice(i, i + BATCH_SIZE);
                 const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-
-                console.log(`📦 인증 확인 배치 ${batchNum}/${totalBatches} (${batchIds.length}명)...`);
 
                 try {
                     const response = await fetch('/api/auth/check-users', {
@@ -168,7 +157,6 @@ export default function AuthSyncPage() {
             });
 
             setAuthCheckProgress(null);
-            console.log('✅ 인증 상태 확인 완료');
 
         } catch (error) {
             console.error('❌ 인증 상태 확인 실패:', error);
@@ -246,8 +234,6 @@ export default function AuthSyncPage() {
                 const batchUsers = usersToSync.slice(i, i + BATCH_SIZE);
                 const batchNum = Math.floor(i / BATCH_SIZE) + 1;
                 const totalBatches = Math.ceil(usersToSync.length / BATCH_SIZE);
-
-                console.log(`📦 동기화 배치 ${batchNum}/${totalBatches} (${batchUsers.length}명)...`);
 
                 try {
                     const response = await fetch('/api/auth/sync-users', {
@@ -330,7 +316,6 @@ export default function AuthSyncPage() {
             setSyncing(true);
             setSyncSummary(null);
             setSyncResults([]);
-            console.log('🔄 인증 동기화 시작...', selectedUsers.size, '명');
 
             const selectedUserList = users.filter(user => selectedUsers.has(user.id));
 
@@ -346,8 +331,6 @@ export default function AuthSyncPage() {
                 const batchUsers = selectedUserList.slice(i, i + BATCH_SIZE);
                 const batchNum = Math.floor(i / BATCH_SIZE) + 1;
                 const totalBatches = Math.ceil(selectedUserList.length / BATCH_SIZE);
-
-                console.log(`📦 동기화 배치 ${batchNum}/${totalBatches} (${batchUsers.length}명)...`);
 
                 try {
                     const response = await fetch('/api/auth/sync-users', {
@@ -417,8 +400,6 @@ export default function AuthSyncPage() {
                     };
                 })
             });
-
-            console.log('✅ 인증 동기화 완료:', { created: totalCreated, updated: totalUpdated, failed: totalFailed });
 
             // 선택 해제
             setSelectedUsers(new Set());

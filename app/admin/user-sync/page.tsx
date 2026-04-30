@@ -52,7 +52,6 @@ export default function UserSyncPage() {
     const loadData = async () => {
         try {
             setLoading(true);
-            console.log('🔄 사용자 동기화 데이터 로드 시작...');
 
             // sh_m 테이블에서 모든 사용자 조회 (페이징 방식)
             let allShMData: ShMUser[] = [];
@@ -76,7 +75,6 @@ export default function UserSyncPage() {
                 }
 
                 allShMData = [...allShMData, ...shMBatch];
-                console.log(`📥 sh_m ${page + 1}페이지 로드: ${shMBatch.length}개, 총: ${allShMData.length}개`);
 
                 if (shMBatch.length < pageSize) {
                     break;
@@ -106,7 +104,6 @@ export default function UserSyncPage() {
                 }
 
                 allUsersData = [...allUsersData, ...usersBatch];
-                console.log(`📥 users ${page + 1}페이지 로드: ${usersBatch.length}개, 총: ${allUsersData.length}개`);
 
                 if (usersBatch.length < pageSize) {
                     break;
@@ -117,11 +114,6 @@ export default function UserSyncPage() {
 
             setShMUsers(allShMData);
             setExistingUsers(allUsersData);
-
-            console.log('✅ 전체 데이터 로드 완료:', {
-                shMCount: allShMData.length,
-                usersCount: allUsersData.length
-            });
 
         } catch (error) {
             console.error('❌ 데이터 로드 실패:', error);
@@ -189,7 +181,6 @@ export default function UserSyncPage() {
         try {
             setSyncing(true);
             setSyncResults([]);
-            console.log('🔄 사용자 동기화 시작...', selectedUsers.size, '명');
 
             const results: SyncResult[] = [];
             const selectedShMUsers = shMUsers.filter(user => selectedUsers.has(user.id));
@@ -229,7 +220,6 @@ export default function UserSyncPage() {
                             message: error.message
                         });
                     } else {
-                        console.log(`✅ ${shUser.email} 동기화 성공`);
                         results.push({
                             success: true,
                             email: shUser.email,
@@ -253,8 +243,6 @@ export default function UserSyncPage() {
 
             const successCount = results.filter(r => r.success).length;
             const failCount = results.filter(r => !r.success).length;
-
-            console.log('✅ 동기화 완료:', { successCount, failCount });
             alert(`동기화가 완료되었습니다. 성공: ${successCount}명, 실패: ${failCount}명`);
 
             // 데이터 다시 로드
