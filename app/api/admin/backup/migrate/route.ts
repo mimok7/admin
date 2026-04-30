@@ -87,7 +87,7 @@ function maskDbUrl(u: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const tempDir = path.join(tmpdir(), `sht-migrate-${Date.now()}`);
+  const tempDir = path.join(/*turbopackIgnore: true*/ tmpdir(), `sht-migrate-${Date.now()}`);
 
   try {
     const auth = await checkAdmin(req);
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Artifact 다운로드 실패 (${downloadRes.status})` }, { status: 502 });
     }
     const zipBuffer = Buffer.from(await downloadRes.arrayBuffer());
-    const zipPath = path.join(tempDir, 'backup.zip');
+    const zipPath = path.join(/*turbopackIgnore: true*/ tempDir, 'backup.zip');
     await writeFile(zipPath, zipBuffer);
 
     // 2) zip 해제
@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const baseName = path.basename(gzEntry.entryName);
-    const extractedPath = path.join(tempDir, baseName);
+    const extractedPath = path.join(/*turbopackIgnore: true*/ tempDir, baseName);
     zip.extractEntryTo(gzEntry, tempDir, false, true);
     if (!existsSync(extractedPath)) {
       return NextResponse.json({ error: `추출된 파일을 찾을 수 없습니다: ${extractedPath}` }, { status: 500 });
