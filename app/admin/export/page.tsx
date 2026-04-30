@@ -341,14 +341,15 @@ export default function ExportPage() {
                   key={s.key}
                   className={`flex items-center gap-2 px-3 py-2 border rounded-md cursor-pointer ${selectedService === s.key ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
                 >
+                  <span className="text-sm">{s.label}</span>
+                  <span className="text-xs text-gray-500 ml-auto">{s.table}</span>
                   <input
                     type="radio"
                     name="service"
                     checked={selectedService === s.key}
                     onChange={() => setSelectedService(s.key)}
+                    className="ml-2"
                   />
-                  <span className="text-sm">{s.label}</span>
-                  <span className="text-xs text-gray-500 ml-auto">{s.table}</span>
                 </label>
               ))}
             </div>

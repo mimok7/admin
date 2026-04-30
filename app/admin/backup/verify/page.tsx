@@ -199,12 +199,12 @@ export default function BackupVerifyPage() {
             </div>
           </div>
           <label className="mt-3 inline-flex items-center gap-2 text-xs text-gray-600">
+            <span>15초마다 자동 새로고침</span>
             <input
               type="checkbox"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
             />
-            15초마다 자동 새로고침
           </label>
           {error && (
             <div className="mt-3 text-sm bg-red-50 border border-red-200 text-red-800 rounded-md p-3">

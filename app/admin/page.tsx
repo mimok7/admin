@@ -742,84 +742,84 @@ export default function AdminDashboard() {
         {/* KPI 카드 - 1행 */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2">
-            <p className="text-[10px] text-emerald-700">전체 매출</p>
-            <p className="mt-0.5 text-xs font-bold text-emerald-900 leading-tight">{moneyDual(r.totalRevenue)}</p>
-            <p className="text-[10px] text-emerald-700">{r.reservationCount.toLocaleString()}건</p>
+            <p className="text-xs text-emerald-700">전체 매출</p>
+            <p className="mt-0.5 text-sm font-bold text-emerald-900 leading-tight">{moneyDual(r.totalRevenue)}</p>
+            <p className="text-xs text-emerald-700">{r.reservationCount.toLocaleString()}건</p>
           </div>
           <div className="rounded-md border border-blue-200 bg-blue-50 p-2">
-            <p className="text-[10px] text-blue-700">이번 달 매출</p>
-            <p className="mt-0.5 text-xs font-bold text-blue-900 leading-tight">{moneyDual(r.currentMonthRevenue)}</p>
-            <p className="text-[10px] text-blue-700">{r.currentMonthCount.toLocaleString()}건</p>
+            <p className="text-xs text-blue-700">이번 달 매출</p>
+            <p className="mt-0.5 text-sm font-bold text-blue-900 leading-tight">{moneyDual(r.currentMonthRevenue)}</p>
+            <p className="text-xs text-blue-700">{r.currentMonthCount.toLocaleString()}건</p>
           </div>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-            <p className="text-[10px] text-slate-600">지난 달 매출</p>
-            <p className="mt-0.5 text-xs font-bold text-slate-900 leading-tight">{moneyDual(r.previousMonthRevenue)}</p>
-            <p className={`text-[10px] font-medium ${momPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <p className="text-xs text-slate-600">지난 달 매출</p>
+            <p className="mt-0.5 text-sm font-bold text-slate-900 leading-tight">{moneyDual(r.previousMonthRevenue)}</p>
+            <p className={`text-xs font-medium ${momPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
               MoM {momPositive ? '▲' : '▼'} {Math.abs(r.momPercent).toFixed(1)}%
             </p>
           </div>
           <div className="rounded-md border border-amber-200 bg-amber-50 p-2">
-            <p className="text-[10px] text-amber-700">평균 예약가</p>
-            <p className="mt-0.5 text-xs font-bold text-amber-900 leading-tight">{moneyDual(r.averageReservation)}</p>
-            <p className="text-[10px] text-amber-700">전체 평균</p>
+            <p className="text-xs text-amber-700">평균 예약가</p>
+            <p className="mt-0.5 text-sm font-bold text-amber-900 leading-tight">{moneyDual(r.averageReservation)}</p>
+            <p className="text-xs text-amber-700">전체 평균</p>
           </div>
           <div className="rounded-md border border-indigo-200 bg-indigo-50 p-2">
-            <p className="text-[10px] text-indigo-700">결제 완료</p>
-            <p className="mt-0.5 text-xs font-bold text-indigo-900 leading-tight">{moneyDual(r.paidTotal)}</p>
-            <p className="text-[10px] text-indigo-700">수금률 {r.collectionRate.toFixed(1)}%</p>
+            <p className="text-xs text-indigo-700">결제 완료</p>
+            <p className="mt-0.5 text-sm font-bold text-indigo-900 leading-tight">{moneyDual(r.paidTotal)}</p>
+            <p className="text-xs text-indigo-700">수금률 {r.collectionRate.toFixed(1)}%</p>
           </div>
           <div className="rounded-md border border-rose-200 bg-rose-50 p-2">
-            <p className="text-[10px] text-rose-700">미수금</p>
-            <p className="mt-0.5 text-xs font-bold text-rose-900 leading-tight">{moneyDual(r.unpaidTotal)}</p>
-            <p className="text-[10px] text-rose-700">전체 - 결제완료</p>
+            <p className="text-xs text-rose-700">미수금</p>
+            <p className="mt-0.5 text-sm font-bold text-rose-900 leading-tight">{moneyDual(r.unpaidTotal)}</p>
+            <p className="text-xs text-rose-700">전체 - 결제완료</p>
           </div>
         </div>
 
         {/* KPI 카드 - 2행 (추가 통계) */}
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
           <div className="rounded-md border border-cyan-200 bg-cyan-50 p-2">
-            <p className="text-[10px] text-cyan-700">최근 7일 매출</p>
-            <p className="mt-0.5 text-xs font-bold text-cyan-900 leading-tight">{moneyDual(r.last7Revenue)}</p>
-            <p className="text-[10px] text-cyan-700">{r.last7Count.toLocaleString()}건</p>
+            <p className="text-xs text-cyan-700">최근 7일 매출</p>
+            <p className="mt-0.5 text-sm font-bold text-cyan-900 leading-tight">{moneyDual(r.last7Revenue)}</p>
+            <p className="text-xs text-cyan-700">{r.last7Count.toLocaleString()}건</p>
           </div>
           <div className="rounded-md border border-teal-200 bg-teal-50 p-2">
-            <p className="text-[10px] text-teal-700">일평균 (이번달)</p>
-            <p className="mt-0.5 text-xs font-bold text-teal-900 leading-tight">{moneyDual(r.dailyAverageCurrentMonth)}</p>
-            <p className="text-[10px] text-teal-700">경과일 기준</p>
+            <p className="text-xs text-teal-700">일평균 (이번달)</p>
+            <p className="mt-0.5 text-sm font-bold text-teal-900 leading-tight">{moneyDual(r.dailyAverageCurrentMonth)}</p>
+            <p className="text-xs text-teal-700">경과일 기준</p>
           </div>
           <div className="rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2">
-            <p className="text-[10px] text-fuchsia-700">최대 단일 예약</p>
-            <p className="mt-0.5 text-xs font-bold text-fuchsia-900 leading-tight">{moneyDual(r.maxSingleReservation)}</p>
-            <p className="text-[10px] text-fuchsia-700">최고가</p>
+            <p className="text-xs text-fuchsia-700">최대 단일 예약</p>
+            <p className="mt-0.5 text-sm font-bold text-fuchsia-900 leading-tight">{moneyDual(r.maxSingleReservation)}</p>
+            <p className="text-xs text-fuchsia-700">최고가</p>
           </div>
           <div className="rounded-md border border-orange-200 bg-orange-50 p-2">
-            <p className="text-[10px] text-orange-700">최고 매출일</p>
-            <p className="mt-0.5 text-xs font-bold text-orange-900 leading-tight">{r.peakDay ? moneyDual(r.peakDay.total) : '-'}</p>
-            <p className="text-[10px] text-orange-700">{r.peakDay?.date || '데이터 없음'}</p>
+            <p className="text-xs text-orange-700">최고 매출일</p>
+            <p className="mt-0.5 text-sm font-bold text-orange-900 leading-tight">{r.peakDay ? moneyDual(r.peakDay.total) : '-'}</p>
+            <p className="text-xs text-orange-700">{r.peakDay?.date || '데이터 없음'}</p>
           </div>
           <div className="rounded-md border border-purple-200 bg-purple-50 p-2">
-            <p className="text-[10px] text-purple-700">활성 고객</p>
-            <p className="mt-0.5 text-xs font-bold text-purple-900 leading-tight">{r.totalUniqueCustomers.toLocaleString()}명</p>
-            <p className="text-[10px] text-purple-700">전체 누적</p>
+            <p className="text-xs text-purple-700">활성 고객</p>
+            <p className="mt-0.5 text-sm font-bold text-purple-900 leading-tight">{r.totalUniqueCustomers.toLocaleString()}명</p>
+            <p className="text-xs text-purple-700">전체 누적</p>
           </div>
           <div className="rounded-md border border-pink-200 bg-pink-50 p-2">
-            <p className="text-[10px] text-pink-700">이번달 고객</p>
-            <p className="mt-0.5 text-xs font-bold text-pink-900 leading-tight">{r.currentMonthUniqueCustomers.toLocaleString()}명</p>
-            <p className="text-[10px] text-pink-700">신규 {r.newCustomersCurrentMonth.toLocaleString()}명</p>
+            <p className="text-xs text-pink-700">이번달 고객</p>
+            <p className="mt-0.5 text-sm font-bold text-pink-900 leading-tight">{r.currentMonthUniqueCustomers.toLocaleString()}명</p>
+            <p className="text-xs text-pink-700">신규 {r.newCustomersCurrentMonth.toLocaleString()}명</p>
           </div>
           <div className="rounded-md border border-lime-200 bg-lime-50 p-2">
-            <p className="text-[10px] text-lime-700">견적→예약 전환</p>
-            <p className="mt-0.5 text-xs font-bold text-lime-900 leading-tight">{r.conversionRate.toFixed(1)}%</p>
-            <p className="text-[10px] text-lime-700">{r.reservationCount}/{r.quoteConfirmedCount}</p>
+            <p className="text-xs text-lime-700">견적→예약 전환</p>
+            <p className="mt-0.5 text-sm font-bold text-lime-900 leading-tight">{r.conversionRate.toFixed(1)}%</p>
+            <p className="text-xs text-lime-700">{r.reservationCount}/{r.quoteConfirmedCount}</p>
           </div>
           <div className="rounded-md border border-sky-200 bg-sky-50 p-2">
-            <p className="text-[10px] text-sky-700">평균 결제액</p>
-            <p className="mt-0.5 text-xs font-bold text-sky-900 leading-tight">{moneyDual(r.averagePayment)}</p>
-            <p className="text-[10px] text-sky-700">건당</p>
+            <p className="text-xs text-sky-700">평균 결제액</p>
+            <p className="mt-0.5 text-sm font-bold text-sky-900 leading-tight">{moneyDual(r.averagePayment)}</p>
+            <p className="text-xs text-sky-700">건당</p>
           </div>
         </div>
 
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-700">
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
           표시 통화: VND(만동) + KRW(환산) · 환율: {exchangeRateText}
         </div>
 
@@ -832,8 +832,8 @@ export default function AdminDashboard() {
         {/* 최근 12개월 매출 추이 */}
         <div className="rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-            <h4 className="font-semibold text-gray-900 text-sm">최근 12개월 매출 추이</h4>
-            <span className="text-[10px] text-gray-500">예약 매출 vs 실 결제</span>
+            <h4 className="font-semibold text-gray-900 text-base">최근 12개월 매출 추이</h4>
+            <span className="text-xs text-gray-500">예약 매출 vs 실 결제</span>
           </div>
           <div className="p-3">
             {r.monthlyRows.length === 0 ? (
@@ -846,12 +846,12 @@ export default function AdminDashboard() {
                   const ph = row.reservationTotal > 0 ? (row.paidTotal / row.reservationTotal) * h : 0;
                   return (
                     <div key={row.month} className="flex-1 min-w-[44px] flex flex-col items-center gap-1">
-                      <div className="text-[10px] text-gray-600">{Math.round(row.reservationTotal / 10000).toLocaleString()}만</div>
+                      <div className="text-xs text-gray-600">{Math.round(row.reservationTotal / 10000).toLocaleString()}만</div>
                       <div className="relative w-full bg-gray-100 rounded-sm" style={{ height: '140px' }}>
                         <div className="absolute bottom-0 left-0 right-0 bg-emerald-400 rounded-sm" style={{ height: `${h}%` }} />
                         <div className="absolute bottom-0 left-0 right-0 bg-emerald-700 rounded-sm" style={{ height: `${ph}%` }} />
                       </div>
-                      <div className="text-[10px] text-gray-500">{row.month.slice(2)}</div>
+                      <div className="text-xs text-gray-500">{row.month.slice(2)}</div>
                     </div>
                   );
                 })}
@@ -868,7 +868,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-              <h4 className="font-semibold text-gray-900 text-sm">최근 30일 일별 매출</h4>
+              <h4 className="font-semibold text-gray-900 text-base">최근 30일 일별 매출</h4>
             </div>
             <div className="p-3">
               <div className="flex items-end gap-[2px] h-32">
@@ -882,7 +882,7 @@ export default function AdminDashboard() {
                   );
                 })}
               </div>
-              <div className="mt-2 flex justify-between text-[10px] text-gray-500">
+              <div className="mt-2 flex justify-between text-xs text-gray-500">
                 <span>{r.dailyRows[0]?.date}</span>
                 <span>{r.dailyRows[r.dailyRows.length - 1]?.date}</span>
               </div>
@@ -891,7 +891,7 @@ export default function AdminDashboard() {
 
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-              <h4 className="font-semibold text-gray-900 text-sm">서비스별 매출 (전체 / 비율)</h4>
+              <h4 className="font-semibold text-gray-900 text-base">서비스별 매출 (전체 / 비율)</h4>
             </div>
             <div className="p-3">
               {r.serviceRows.length === 0 ? (
@@ -913,7 +913,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-              <h4 className="font-semibold text-gray-900 text-sm">예약 상태별 분포</h4>
+              <h4 className="font-semibold text-gray-900 text-base">예약 상태별 분포</h4>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -939,7 +939,7 @@ export default function AdminDashboard() {
 
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-              <h4 className="font-semibold text-gray-900 text-sm">TOP 10 고객 매출</h4>
+              <h4 className="font-semibold text-gray-900 text-base">TOP 10 고객 매출</h4>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -975,7 +975,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-              <h4 className="font-semibold text-gray-900 text-sm">요일별 매출 패턴</h4>
+              <h4 className="font-semibold text-gray-900 text-base">요일별 매출 패턴</h4>
             </div>
             <div className="p-3">
               {(() => {
@@ -987,10 +987,10 @@ export default function AdminDashboard() {
                       const isWeekend = w.weekday === '토' || w.weekday === '일';
                       return (
                         <div key={w.weekday} className="flex-1 flex flex-col items-center gap-1" title={`${w.weekday} · ${moneyDual(w.total)} (${w.count}건)`}>
-                          <div className="text-[10px] text-gray-600">{Math.round(w.total / 10000).toLocaleString()}만</div>
+                          <div className="text-xs text-gray-600">{Math.round(w.total / 10000).toLocaleString()}만</div>
                           <div className={`w-full ${isWeekend ? 'bg-rose-400' : 'bg-indigo-400'} rounded-sm`} style={{ height: `${Math.max(h, 1)}%` }} />
-                          <div className={`text-[10px] ${isWeekend ? 'text-rose-600' : 'text-gray-500'}`}>{w.weekday}</div>
-                          <div className="text-[10px] text-gray-400">{w.count}건</div>
+                          <div className={`text-xs ${isWeekend ? 'text-rose-600' : 'text-gray-500'}`}>{w.weekday}</div>
+                          <div className="text-xs text-gray-400">{w.count}건</div>
                         </div>
                       );
                     })}
@@ -1002,11 +1002,11 @@ export default function AdminDashboard() {
 
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-              <h4 className="font-semibold text-gray-900 text-sm">결제 상태 분포</h4>
+              <h4 className="font-semibold text-gray-900 text-base">결제 상태 분포</h4>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs">
-                <thead className="bg-white text-left text-[10px] uppercase tracking-wide text-gray-500">
+                <thead className="bg-white text-left text-xs uppercase tracking-wide text-gray-500">
                   <tr>
                     <th className="px-3 py-2">결제 상태</th>
                     <th className="px-3 py-2">건수</th>
@@ -1038,7 +1038,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           <div className="xl:col-span-2 rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-              <h4 className="font-semibold text-gray-900 text-sm">월별 상세</h4>
+              <h4 className="font-semibold text-gray-900 text-base">월별 상세</h4>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -1071,7 +1071,7 @@ export default function AdminDashboard() {
 
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-              <h4 className="font-semibold text-gray-900 text-sm">예약 vs 견적 (참고)</h4>
+              <h4 className="font-semibold text-gray-900 text-base">예약 vs 견적 (참고)</h4>
             </div>
             <div className="p-3 space-y-2 text-xs">
               <div className="flex justify-between">
@@ -1105,41 +1105,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* 이번 달 확정 예약 목록 */}
-        <div className="rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-            <h4 className="font-semibold text-gray-900 text-sm">이번 달 확정 예약 목록</h4>
-            <p className="text-[10px] text-gray-500">최근 {DETAIL_LIMIT}건까지 표시합니다.</p>
-          </div>
-          {detailRows.length === 0 ? (
-            <div className="p-6 text-center text-gray-500">이번 달 확정 예약이 없습니다.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-white text-left text-xs uppercase tracking-wide text-gray-500">
-                  <tr>
-                    <th className="px-4 py-3">예약 ID</th>
-                    <th className="px-4 py-3">서비스</th>
-                    <th className="px-4 py-3">상태</th>
-                    <th className="px-4 py-3">금액</th>
-                    <th className="px-4 py-3">생성일</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detailRows.map((row) => (
-                    <tr key={row.re_id} className="border-t border-gray-100">
-                      <td className="px-4 py-3 font-medium text-gray-900">{row.re_id}</td>
-                      <td className="px-4 py-3 text-gray-600">{serviceLabel(row.re_type)}</td>
-                      <td className="px-4 py-3 text-gray-600">{statusLabel(row.re_status)}</td>
-                      <td className="px-4 py-3 text-gray-700">{moneyDual(Number(row.total_amount || 0))}</td>
-                      <td className="px-4 py-3 text-gray-500">{formatDate(row.re_created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
     );
   };
@@ -1168,15 +1133,15 @@ export default function AdminDashboard() {
                 onClick={() => handleStatClick(card.key)}
                 className={`bg-white rounded-md shadow-sm p-2.5 text-left transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${active ? 'ring-2 ring-blue-500' : ''}`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-medium text-gray-600 truncate">{card.title}</p>
-                    <p className="text-sm font-bold text-gray-900 leading-tight truncate" title={typeof card.value === 'string' ? card.value : ''}>
-                      {typeof card.value === 'string' ? card.value : card.value.toLocaleString()}
-                    </p>
-                  </div>
+                <div className="flex items-center gap-2">
                   <div className={`w-7 h-7 ${card.color} rounded-md flex items-center justify-center text-white text-sm flex-none`}>
                     {card.icon}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-gray-600 truncate">{card.title}</p>
+                    <p className="text-base font-bold text-gray-900 leading-tight truncate" title={typeof card.value === 'string' ? card.value : ''}>
+                      {typeof card.value === 'string' ? card.value : card.value.toLocaleString()}
+                    </p>
                   </div>
                 </div>
               </button>
@@ -1187,7 +1152,7 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-lg shadow-md">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-xl font-semibold text-gray-900">
                 {selectedCard ? `${selectedCard.title} 상세` : '통계 상세'}
               </h3>
               <p className="text-sm text-gray-500">

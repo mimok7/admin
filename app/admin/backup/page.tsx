@@ -743,15 +743,15 @@ export default function AdminBackupPage() {
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                   <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
                     <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-sm font-medium text-gray-700">
+                        전체 선택 ({selectedTables.length}/{tables.length})
+                      </span>
                       <input
                         type="checkbox"
                         checked={selectedTables.length === tables.length && tables.length > 0}
                         onChange={handleSelectAllTables}
                         className="w-4 h-4 rounded"
                       />
-                      <span className="text-sm font-medium text-gray-700">
-                        전체 선택 ({selectedTables.length}/{tables.length})
-                      </span>
                     </label>
                   </div>
                   <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
@@ -839,12 +839,6 @@ export default function AdminBackupPage() {
                         className="w-full px-3 py-2 border border-red-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-400"
                       />
                       <label className="flex items-start gap-2 mt-3 text-xs text-red-900 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={truncateBefore}
-                          onChange={(e) => setTruncateBefore(e.target.checked)}
-                          className="mt-0.5"
-                        />
                         <span>
                           <strong>기존 데이터 삭제(TRUNCATE) 후 복원</strong>
                           <br />
@@ -852,14 +846,14 @@ export default function AdminBackupPage() {
                             체크 시 선택한 테이블의 모든 행을 비우고(CASCADE) 복원합니다. 체크하지 않으면 PK 충돌로 실패할 수 있습니다.
                           </span>
                         </span>
-                      </label>
-                      <label className="flex items-start gap-2 mt-2 text-xs text-red-900 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={includeDependents}
-                          onChange={(e) => setIncludeDependents(e.target.checked)}
+                          checked={truncateBefore}
+                          onChange={(e) => setTruncateBefore(e.target.checked)}
                           className="mt-0.5"
                         />
+                      </label>
+                      <label className="flex items-start gap-2 mt-2 text-xs text-red-900 cursor-pointer">
                         <span>
                           <strong>FK 의존 테이블 자동 포함</strong>
                           <br />
@@ -867,6 +861,12 @@ export default function AdminBackupPage() {
                             선택 테이블을 외래키로 참조하는 모든 테이블을 자동으로 찾아 함께 TRUNCATE/복원합니다. (CASCADE로 인한 데이터 손실 방지)
                           </span>
                         </span>
+                        <input
+                          type="checkbox"
+                          checked={includeDependents}
+                          onChange={(e) => setIncludeDependents(e.target.checked)}
+                          className="mt-0.5"
+                        />
                       </label>
                     </div>
 

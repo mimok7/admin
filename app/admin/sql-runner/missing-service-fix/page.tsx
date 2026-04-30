@@ -224,7 +224,7 @@ export default function Page() {
 
             <div className="mb-4">
                 <label className="mr-2">
-                    <input type="checkbox" onChange={(e) => setShowAllPreview(e.target.checked)} /> 전체 프리뷰
+                    전체 프리뷰 <input type="checkbox" onChange={(e) => setShowAllPreview(e.target.checked)} />
                 </label>
                 <button className="ml-4 btn bg-blue-500 text-white px-3 py-1 rounded" onClick={() => { const res = generateForSelected(!showAllPreview); alert(`생성된 INSERT 문 수: ${res.count}`); }}>선택한 행으로 SQL 생성</button>
                 <button className="ml-2 btn bg-green-500 text-white px-3 py-1 rounded" onClick={() => { const res = generateForSelected(false); alert(`전체 대상 행으로 SQL 생성: ${res.count}`); }}>전체 행으로 SQL 생성</button>

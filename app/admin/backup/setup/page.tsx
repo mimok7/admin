@@ -287,12 +287,6 @@ export default function BackupSetupPage() {
                 }`}
               >
                 <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="mt-1 w-4 h-4"
-                    checked={!!checks[t.id]}
-                    onChange={() => toggle(t.id)}
-                  />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-gray-900">{t.title}</span>
@@ -325,6 +319,12 @@ export default function BackupSetupPage() {
                       </a>
                     )}
                   </div>
+                  <input
+                    type="checkbox"
+                    className="mt-1 w-4 h-4"
+                    checked={!!checks[t.id]}
+                    onChange={() => toggle(t.id)}
+                  />
                 </label>
               </li>
             ))}
@@ -347,12 +347,6 @@ export default function BackupSetupPage() {
                 }`}
               >
                 <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="mt-1 w-4 h-4"
-                    checked={!!checks[s.id]}
-                    onChange={() => toggle(s.id)}
-                  />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <code className="font-mono text-sm text-gray-900 bg-gray-100 px-2 py-0.5 rounded">
@@ -381,6 +375,12 @@ export default function BackupSetupPage() {
                     </div>
                     <p className="text-xs text-gray-600 mt-1">{s.desc}</p>
                   </div>
+                  <input
+                    type="checkbox"
+                    className="mt-1 w-4 h-4"
+                    checked={!!checks[s.id]}
+                    onChange={() => toggle(s.id)}
+                  />
                 </label>
               </li>
             ))}

@@ -147,7 +147,7 @@ export default function BackupMigratePage() {
 
   return (
     <AdminLayout title="다른 계정으로 데이터 이전" activeTab="backup-migrate">
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
+      <div className="w-full p-6 space-y-6">
         {/* 헤더 */}
         <div className="bg-white rounded-lg shadow p-6">
           <h1 className="text-2xl font-bold mb-2">📦 다른 Supabase 계정으로 전체 이전</h1>
@@ -287,7 +287,7 @@ export default function BackupMigratePage() {
             {/* Step 1: 백업 선택 */}
             <section className="bg-white rounded-lg shadow p-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-bold">1️⃣ 이전에 사용할 백업 선택</h2>
+                <h2 className="font-bold text-left">1️⃣ 이전에 사용할 백업 선택</h2>
                 <button
                   onClick={loadArtifacts}
                   disabled={loadingArtifacts}
@@ -304,22 +304,23 @@ export default function BackupMigratePage() {
                   {artifacts.map((a) => (
                     <label
                       key={a.id}
-                      className={`flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-gray-50 ${
+                      className={`flex items-start gap-3 p-2 rounded cursor-pointer hover:bg-gray-50 ${
                         String(selectedId) === String(a.id) ? 'bg-blue-50 border border-blue-300' : ''
                       }`}
                     >
-                      <input
-                        type="radio"
-                        name="artifact"
-                        checked={String(selectedId) === String(a.id)}
-                        onChange={() => setSelectedId(String(a.id))}
-                      />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{a.name}</div>
                         <div className="text-xs text-gray-500">
                           {new Date(a.created_at).toLocaleString('ko-KR')} · {fmtBytes(a.size_in_bytes)}
                         </div>
                       </div>
+                      <input
+                        type="radio"
+                        name="artifact"
+                        checked={String(selectedId) === String(a.id)}
+                        onChange={() => setSelectedId(String(a.id))}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
+                      />
                     </label>
                   ))}
                 </div>
@@ -345,33 +346,48 @@ export default function BackupMigratePage() {
             {/* Step 3: 옵션 */}
             <section className="bg-white rounded-lg shadow p-5">
               <h2 className="font-bold mb-3">3️⃣ 이전 옵션</h2>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">이전 모드</label>
-                  <div className="flex gap-3 flex-wrap">
+                  <label className="block text-sm font-medium mb-2">이전 모드</label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     {[
                       { v: 'full', label: '전체 (스키마 + 데이터)' },
                       { v: 'schema-only', label: '스키마만' },
                       { v: 'data-only', label: '데이터만' },
                     ].map((m) => (
-                      <label key={m.v} className="flex items-center gap-1 text-sm">
+                      <label
+                        key={m.v}
+                        className={`flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer transition ${
+                          mode === m.v
+                            ? 'border-blue-400 bg-blue-50 text-blue-800'
+                            : 'border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="font-medium">{m.label}</span>
                         <input
                           type="radio"
                           checked={mode === m.v}
                           onChange={() => setMode(m.v as Mode)}
+                          className="h-4 w-4 shrink-0"
                         />
-                        {m.label}
                       </label>
                     ))}
                   </div>
                 </div>
-                <label className="flex items-center gap-2 text-sm">
+
+                <label className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm cursor-pointer">
+                  <div className="flex-1">
+                    <div className="font-medium text-amber-900">
+                      대상 DB 기존 객체 먼저 삭제(--clean --if-exists)
+                    </div>
+                    <div className="text-xs text-red-600 mt-0.5">권장: 빈 새 프로젝트</div>
+                  </div>
                   <input
                     type="checkbox"
                     checked={cleanFirst}
                     onChange={(e) => setCleanFirst(e.target.checked)}
+                    className="h-4 w-4 shrink-0"
                   />
-                  대상 DB 기존 객체 먼저 삭제(--clean --if-exists) <span className="text-xs text-red-600">권장: 빈 새 프로젝트</span>
                 </label>
               </div>
             </section>
