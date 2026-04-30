@@ -12,7 +12,7 @@ import { createGunzip } from 'zlib';
 import { pipeline } from 'stream/promises';
 
 export const runtime = 'nodejs';
-export const maxDuration = 600; // 10분
+export const maxDuration = 300; // 5분 (Hobby plan max)
 
 const GITHUB_OWNER = process.env.GITHUB_BACKUP_OWNER || 'mimok7';
 const GITHUB_REPO = process.env.GITHUB_BACKUP_REPO || 'admin';
