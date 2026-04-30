@@ -15,7 +15,7 @@ const nextConfig = {
   reactStrictMode: true,
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   output: 'standalone',
-  serverExternalPackages: ['adm-zip'],
+  serverExternalPackages: ['unzipper'],
   experimental: {
     optimizePackageImports: ['lucide-react', 'date-fns'],
   },
@@ -27,7 +27,9 @@ const nextConfig = {
           }
         : false,
   },
-  turbopack: {},
+  turbopack: {
+    root: __dirname,
+  },
   async headers() {
     return [
       {

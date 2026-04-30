@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import serviceSupabase from '@/lib/serviceSupabase';
-import AdmZip from 'adm-zip';
+import unzipper from 'unzipper';
 
 const GITHUB_OWNER = process.env.GITHUB_BACKUP_OWNER || 'mimok7';
 const GITHUB_REPO = process.env.GITHUB_BACKUP_REPO || 'admin';
@@ -77,12 +77,12 @@ async function getLatestVerifyReport(runId: number): Promise<VerifyScoreReport |
   if (!zipRes.ok) return null;
 
   const zipBuffer = Buffer.from(await zipRes.arrayBuffer());
-  const zip = new AdmZip(zipBuffer);
-  const entry = zip.getEntries().find((e) => e.entryName.endsWith('verify-report.json'));
+  const zip = await unzipper.Open.buffer(zipBuffer);
+  const entry = zip.files.find((e) => e.path.endsWith('verify-report.json'));
   if (!entry) return null;
 
   try {
-    const text = entry.getData().toString('utf8');
+    const text = (await entry.buffer()).toString('utf8');
     return JSON.parse(text);
   } catch {
     return null;

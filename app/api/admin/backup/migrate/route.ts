@@ -3,11 +3,11 @@ import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import serviceSupabase from '@/lib/serviceSupabase';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { writeFile, mkdir, rm } from 'fs/promises';
-import { existsSync, createReadStream, createWriteStream } from 'fs';
+import { mkdir, rm } from 'fs/promises';
+import { createReadStream, createWriteStream } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import AdmZip from 'adm-zip';
+import unzipper from 'unzipper';
 import { createGunzip } from 'zlib';
 import { pipeline } from 'stream/promises';
 
@@ -19,21 +19,7 @@ const GITHUB_REPO = process.env.GITHUB_BACKUP_REPO || 'admin';
 const GITHUB_TOKEN = process.env.GITHUB_BACKUP_TOKEN || process.env.GITHUB_TOKEN || '';
 
 function getPgRestorePath(): string {
-  if (process.env.PG_RESTORE_PATH) return process.env.PG_RESTORE_PATH;
-  if (process.platform === 'win32') {
-    const candidates = [
-      'C:\\Program Files\\PostgreSQL\\17\\bin\\pg_restore.exe',
-      'C:\\Program Files\\PostgreSQL\\16\\bin\\pg_restore.exe',
-    ];
-    for (const c of candidates) if (existsSync(c)) return c;
-  }
-  const linuxCandidates = [
-    '/usr/lib/postgresql/17/bin/pg_restore',
-    '/usr/lib/postgresql/16/bin/pg_restore',
-    '/usr/bin/pg_restore',
-  ];
-  for (const c of linuxCandidates) if (existsSync(c)) return c;
-  return 'pg_restore';
+  return process.env.PG_RESTORE_PATH || 'pg_restore';
 }
 
 async function checkAdmin(req: NextRequest): Promise<{ ok: boolean; error?: string; status?: number }> {
@@ -138,12 +124,6 @@ export async function POST(req: NextRequest) {
     }
 
     const pgRestore = getPgRestorePath();
-    if (!existsSync(pgRestore) && pgRestore !== 'pg_restore') {
-      return NextResponse.json(
-        { error: `pg_restore를 찾을 수 없습니다. PostgreSQL 17 클라이언트를 설치하세요. 경로: ${pgRestore}` },
-        { status: 500 }
-      );
-    }
 
     await mkdir(tempDir, { recursive: true });
 
@@ -160,25 +140,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Artifact 다운로드 실패 (${downloadRes.status})` }, { status: 502 });
     }
     const zipBuffer = Buffer.from(await downloadRes.arrayBuffer());
-    const zipPath = path.join(/*turbopackIgnore: true*/ tempDir, 'backup.zip');
-    await writeFile(zipPath, zipBuffer);
 
     // 2) zip 해제
-    const zip = new AdmZip(zipPath);
-    const entries = zip.getEntries();
-    const gzEntry = entries.find((e) => e.entryName.endsWith('.dump.gz') || e.entryName.endsWith('.dump'));
-    if (!gzEntry) {
+    const zip = await unzipper.Open.buffer(zipBuffer);
+    const dumpEntry = zip.files.find(
+      (entry) => !entry.path.endsWith('/') && (entry.path.endsWith('.dump.gz') || entry.path.endsWith('.dump'))
+    );
+    if (!dumpEntry) {
       return NextResponse.json(
-        { error: '백업 zip에서 .dump 파일을 찾을 수 없습니다', entries: entries.map((e) => e.entryName) },
+        { error: '백업 zip에서 .dump 파일을 찾을 수 없습니다', entries: zip.files.map((e) => e.path) },
         { status: 500 }
       );
     }
-    const baseName = path.basename(gzEntry.entryName);
+    const baseName = path.basename(dumpEntry.path);
     const extractedPath = path.join(/*turbopackIgnore: true*/ tempDir, baseName);
-    zip.extractEntryTo(gzEntry, tempDir, false, true);
-    if (!existsSync(extractedPath)) {
-      return NextResponse.json({ error: `추출된 파일을 찾을 수 없습니다: ${extractedPath}` }, { status: 500 });
-    }
+    await pipeline(dumpEntry.stream(), createWriteStream(extractedPath));
 
     // 3) gunzip
     let dumpFile = extractedPath;

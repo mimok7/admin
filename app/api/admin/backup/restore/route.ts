@@ -3,11 +3,10 @@ import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import serviceSupabase from '@/lib/serviceSupabase';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { writeFile, unlink, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
+import { unlink, mkdir } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
-import AdmZip from 'adm-zip';
+import unzipper from 'unzipper';
 import { createGunzip } from 'zlib';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
@@ -21,23 +20,7 @@ const GITHUB_TOKEN = process.env.GITHUB_BACKUP_TOKEN || process.env.GITHUB_TOKEN
 
 // pg_restore 바이너리 경로 (환경별 자동 탐지)
 function getPgRestorePath(): string {
-  if (process.env.PG_RESTORE_PATH) return process.env.PG_RESTORE_PATH;
-  // Windows
-  if (process.platform === 'win32') {
-    const candidates = [
-      'C:\\Program Files\\PostgreSQL\\17\\bin\\pg_restore.exe',
-      'C:\\Program Files\\PostgreSQL\\16\\bin\\pg_restore.exe',
-    ];
-    for (const c of candidates) if (existsSync(c)) return c;
-  }
-  // Linux/Mac
-  const linuxCandidates = [
-    '/usr/lib/postgresql/17/bin/pg_restore',
-    '/usr/lib/postgresql/16/bin/pg_restore',
-    '/usr/bin/pg_restore',
-  ];
-  for (const c of linuxCandidates) if (existsSync(c)) return c;
-  return 'pg_restore'; // PATH에 있다고 가정
+  return process.env.PG_RESTORE_PATH || 'pg_restore';
 }
 
 // pg_restore 경로에서 psql 경로 유추
@@ -120,12 +103,6 @@ export async function POST(req: NextRequest) {
     }
 
     const pgRestore = getPgRestorePath();
-    if (!existsSync(pgRestore) && pgRestore !== 'pg_restore') {
-      return NextResponse.json(
-        { error: `pg_restore를 찾을 수 없습니다. PostgreSQL 17 클라이언트를 설치하세요. 경로: ${pgRestore}` },
-        { status: 500 }
-      );
-    }
 
     await mkdir(tempDir, { recursive: true });
 
@@ -147,32 +124,23 @@ export async function POST(req: NextRequest) {
     }
 
     const zipBuffer = Buffer.from(await downloadRes.arrayBuffer());
-    const zipPath = path.join(/*turbopackIgnore: true*/ tempDir, 'backup.zip');
-    await writeFile(zipPath, zipBuffer);
-    cleanupFiles.push(zipPath);
 
-    // 2. zip 해제 (.dump.gz 추출)
-    const zip = new AdmZip(zipPath);
-    const entries = zip.getEntries();
-    const gzEntry = entries.find((e) => e.entryName.endsWith('.dump.gz') || e.entryName.endsWith('.dump'));
-    if (!gzEntry) {
+    // 2. zip 해제 (.dump.gz 또는 .dump 추출)
+    const zip = await unzipper.Open.buffer(zipBuffer);
+    const dumpEntry = zip.files.find(
+      (entry) => !entry.path.endsWith('/') && (entry.path.endsWith('.dump.gz') || entry.path.endsWith('.dump'))
+    );
+    if (!dumpEntry) {
       return NextResponse.json(
         { error: '백업 zip에서 .dump 파일을 찾을 수 없습니다' },
         { status: 500 }
       );
     }
 
-    const baseName = path.basename(gzEntry.entryName);
+    const baseName = path.basename(dumpEntry.path);
     const extractedPath = path.join(/*turbopackIgnore: true*/ tempDir, baseName);
-    zip.extractEntryTo(gzEntry, tempDir, false, true);
+    await pipeline(dumpEntry.stream(), createWriteStream(extractedPath));
     cleanupFiles.push(extractedPath);
-
-    if (!existsSync(extractedPath)) {
-      return NextResponse.json(
-        { error: `추출된 파일을 찾을 수 없습니다: ${extractedPath}`, entries: entries.map(e => e.entryName) },
-        { status: 500 }
-      );
-    }
 
     // 3. .gz 인 경우 압축 해제
     let dumpFile = extractedPath;
@@ -196,12 +164,6 @@ export async function POST(req: NextRequest) {
     let tables: string[] = [...validRequested];
     let addedDependents: string[] = [];
     if (includeDependents) {
-      if (!existsSync(psqlPath) && psqlPath !== 'psql') {
-        return NextResponse.json(
-          { error: `psql을 찾을 수 없습니다: ${psqlPath}` },
-          { status: 500 }
-        );
-      }
       const arrLiteral = '{' + validRequested.join(',') + '}';
       const depsSql = `
 WITH RECURSIVE deps AS (
@@ -247,12 +209,6 @@ SELECT relname FROM deps;`.trim().replace(/\s+/g, ' ');
     // 4-0. (옵션) 기존 데이터 TRUNCATE
     let truncateOutput = '';
     if (truncateBefore) {
-      if (!existsSync(psqlPath) && psqlPath !== 'psql') {
-        return NextResponse.json(
-          { error: `psql을 찾을 수 없습니다: ${psqlPath}` },
-          { status: 500 }
-        );
-      }
       const safeTables = tables.filter((t: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(t));
       if (safeTables.length === 0) {
         return NextResponse.json(

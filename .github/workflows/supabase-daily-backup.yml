@@ -107,5 +107,5 @@ jobs:
           RCLONE_REMOTE_PATH: ${{ secrets['RCLONE_REMOTE_PATH'] }}
         run: |
           curl -fsSL https://rclone.org/install.sh | sudo bash
-          rclone copy "${BACKUP_FILE}" "${RCLONE_REMOTE_PATH}" --create-empty-src-dirs
+          rclone copy "${{ steps.dump.outputs.file }}" "${RCLONE_REMOTE_PATH}" --create-empty-src-dirs
           rclone lsf "${RCLONE_REMOTE_PATH}" | tail -n 20

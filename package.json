@@ -8,8 +8,8 @@
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "start": "next start",
-    "lint": "next lint",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "lint": "eslint \"app/**/*.{ts,tsx}\" \"components/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"scripts/**/*.mjs\" proxy.ts next.config.js",
+    "lint:fix": "npm run lint -- --fix",
     "format": "prettier --write ."
   },
   "dependencies": {
@@ -17,7 +17,6 @@
     "@supabase/supabase-js": "^2.52.1",
     "@tanstack/react-query": "^5.95.0",
     "@types/nodemailer": "^7.0.4",
-    "adm-zip": "^0.5.17",
     "csv-parse": "^6.1.0",
     "csv-parser": "^3.2.0",
     "date-fns": "^4.1.0",
@@ -32,13 +31,14 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "sht-admin": "file:",
+    "unzipper": "^0.12.3",
     "xlsx": "^0.18.5",
     "zustand": "^5.0.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@types/adm-zip": "^0.5.8",
     "@types/react": "19.1.8",
+    "@types/unzipper": "^0.10.11",
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
     "autoprefixer": "^10.4.21",
