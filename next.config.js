@@ -15,6 +15,7 @@ const nextConfig = {
   reactStrictMode: true,
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   output: 'standalone',
+  serverExternalPackages: ['adm-zip'],
   experimental: {
     optimizePackageImports: ['lucide-react', 'date-fns'],
   },
