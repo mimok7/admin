@@ -207,6 +207,7 @@ export default function AdminLayout({ children, title, activeTab }: AdminLayoutP
         { id: 'backup-verify', label: '복원 검증', path: '/admin/backup/verify', icon: '🔬' },
         { id: 'backup-migrate', label: '계정 이전', path: '/admin/backup/migrate', icon: '📦' },
         { id: 'backup-guide', label: '백업 지침', path: '/admin/backup/guide', icon: '📘' },
+        { id: 'backup-setup', label: '설정 체크리스트', path: '/admin/backup/setup', icon: '✅' },
         { id: 'export', label: '엑셀 내보내기', path: '/admin/export', icon: '📤' },
       ]
     },

@@ -227,6 +227,9 @@ export default function ExportPage() {
           PC 전원이 꺼져 있어도 새벽 자동 생성이 필요하면 GitHub Actions의
           <b> Nightly Excel Export</b> 워크플로우를 사용하세요.
           생성 파일은 Actions Artifacts에 저장되며, 수동 실행은 Actions 화면에서 가능합니다.
+          Google Drive 자동 업로드는 저장소 Secrets에
+          <code className="mx-1">GOOGLE_DRIVE_FOLDER_ID</code>
+          와 서비스 계정 키를 설정하면 함께 동작합니다.
         </div>
 
         {/* 모드 탭 */}

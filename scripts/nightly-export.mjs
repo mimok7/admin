@@ -2,9 +2,14 @@ import fs from 'fs/promises';
 import path from 'path';
 import XLSX from 'xlsx';
 import { createClient } from '@supabase/supabase-js';
+import { google } from 'googleapis';
 
 const SUPABASE_URL = process.env.EXPORT_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.EXPORT_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
+const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '';
+const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
+const GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '';
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error('Missing env: EXPORT_SUPABASE_URL / EXPORT_SUPABASE_SERVICE_ROLE_KEY');
@@ -26,6 +31,66 @@ const SERVICE_TABLES = [
 
 function sanitizeSheetName(name) {
   return String(name).replace(/[\\/?*\[\]:]/g, '_').slice(0, 31);
+}
+
+function normalizePrivateKey(pk) {
+  if (!pk) return '';
+  return pk.replace(/\\n/g, '\n');
+}
+
+async function createDriveClientOrNull() {
+  if (!GOOGLE_DRIVE_FOLDER_ID) return null;
+
+  let serviceAccount = null;
+  if (GOOGLE_SERVICE_ACCOUNT_JSON) {
+    try {
+      serviceAccount = JSON.parse(GOOGLE_SERVICE_ACCOUNT_JSON);
+    } catch (e) {
+      throw new Error(`Invalid GOOGLE_SERVICE_ACCOUNT_JSON: ${e?.message || String(e)}`);
+    }
+  } else if (GOOGLE_SERVICE_ACCOUNT_EMAIL && GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) {
+    serviceAccount = {
+      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: normalizePrivateKey(GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY),
+    };
+  }
+
+  if (!serviceAccount?.client_email || !serviceAccount?.private_key) {
+    console.log('Google Drive upload skipped: missing service account credentials.');
+    return null;
+  }
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: serviceAccount,
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+  });
+  return google.drive({ version: 'v3', auth });
+}
+
+async function uploadToGoogleDrive(drive, filePath, folderId) {
+  const name = path.basename(filePath);
+  const mimeType = name.endsWith('.xlsx')
+    ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    : 'application/json';
+
+  const res = await drive.files.create({
+    requestBody: {
+      name,
+      parents: [folderId],
+    },
+    media: {
+      mimeType,
+      body: await fs.open(filePath).then((f) => f.createReadStream()),
+    },
+    fields: 'id,name,webViewLink',
+    supportsAllDrives: true,
+  });
+
+  return {
+    id: res.data.id,
+    name: res.data.name,
+    webViewLink: res.data.webViewLink || null,
+  };
 }
 
 function sheetFromRows(rows) {
@@ -150,7 +215,10 @@ async function main() {
     XLSX.utils.book_append_sheet(wbSvc, sheetFromRows(rows), sanitizeSheetName(svc.table));
   }
   const svcName = `services_all_${stamp}.xlsx`;
-  XLSX.writeFile(wbSvc, path.join(outDir, svcName), { bookType: 'xlsx' });
+  const svcPath = path.join(outDir, svcName);
+  XLSX.writeFile(wbSvc, svcPath, { bookType: 'xlsx' });
+
+  const summaryPath = path.join(outDir, 'summary.json');
 
   const summary = {
     generatedAt: new Date().toISOString(),
@@ -162,9 +230,32 @@ async function main() {
       services: Object.fromEntries(SERVICE_TABLES.map((s) => [s.key, (services[s.key] || []).length])),
       serviceTotal,
     },
+    googleDrive: {
+      enabled: Boolean(GOOGLE_DRIVE_FOLDER_ID),
+      folderId: GOOGLE_DRIVE_FOLDER_ID || null,
+      uploaded: [],
+      error: null,
+    },
   };
 
-  await fs.writeFile(path.join(outDir, 'summary.json'), JSON.stringify(summary, null, 2));
+  // summary를 먼저 생성한 뒤 업로드 결과를 덧붙여 다시 기록한다.
+  await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+
+  try {
+    const drive = await createDriveClientOrNull();
+    if (drive && GOOGLE_DRIVE_FOLDER_ID) {
+      const uploads = [];
+      uploads.push(await uploadToGoogleDrive(drive, xlsxPath, GOOGLE_DRIVE_FOLDER_ID));
+      uploads.push(await uploadToGoogleDrive(drive, svcPath, GOOGLE_DRIVE_FOLDER_ID));
+      uploads.push(await uploadToGoogleDrive(drive, summaryPath, GOOGLE_DRIVE_FOLDER_ID));
+      summary.googleDrive.uploaded = uploads;
+    }
+  } catch (e) {
+    summary.googleDrive.error = e?.message || String(e);
+    console.error('Google Drive upload failed:', summary.googleDrive.error);
+  }
+
+  await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
 }
 
